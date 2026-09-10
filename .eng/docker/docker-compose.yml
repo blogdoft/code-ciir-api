@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      # Build context must stay the repo root - Dockerfile's COPY instructions are written
+      # relative to it (e.g. "COPY src/ src/"). Compose resolves relative paths against this
+      # file's own location (.eng/docker/), so ../.. lands back on the repo root regardless of
+      # the caller's cwd; dockerfile: is then relative to that same context.
+      context: ../..
+      dockerfile: .eng/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # code3rag is remote (192.168.1.212) and owned by code-ciir-indexer - unlike
+      # code-rag-api's docker-compose, there is no disposable local Postgres here. Supply your
+      # own connection string (see .specs/02-bootstrap-solution.md); never commit it.
+      ConnectionStrings__Database: "${CIIR_CONNECTION_STRING:?set CIIR_CONNECTION_STRING}"

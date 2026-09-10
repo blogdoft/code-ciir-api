@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CodeCiir.Api/CodeCiir.Api.csproj" />
+    <Project Path="src/CodeCiir.Application/CodeCiir.Application.csproj" />
+    <Project Path="src/CodeCiir.Embeddings.Abstraction/CodeCiir.Embeddings.Abstraction.csproj" />
+    <Project Path="src/CodeCiir.Embeddings.Ollama/CodeCiir.Embeddings.Ollama.csproj" />
+    <Project Path="src/CodeCiir.Infrastructure.Database/CodeCiir.Infrastructure.Database.csproj" />
+    <Project Path="src/CodeCiir.Mcp/CodeCiir.Mcp.csproj" />
+    <Project Path="src/CodeCiir.Reranking.Abstraction/CodeCiir.Reranking.Abstraction.csproj" />
+    <Project Path="src/CodeCiir.Reranking.Ollama/CodeCiir.Reranking.Ollama.csproj" />
+    <Project Path="src/CodeCiir.Reranking.OpenAI/CodeCiir.Reranking.OpenAI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CodeCiir.Api.Tests/CodeCiir.Api.Tests.csproj" />
+    <Project Path="tests/CodeCiir.Application.Tests/CodeCiir.Application.Tests.csproj" />
+    <Project Path="tests/CodeCiir.Infrastructure.Database.Tests/CodeCiir.Infrastructure.Database.Tests.csproj" />
+    <Project Path="tests/CodeCiir.Mcp.Tests/CodeCiir.Mcp.Tests.csproj" />
+    <Project Path="tests/CodeCiir.Reranking.Abstraction.Tests/CodeCiir.Reranking.Abstraction.Tests.csproj" />
+    <Project Path="tests/CodeCiir.Reranking.Ollama.Tests/CodeCiir.Reranking.Ollama.Tests.csproj" />
+    <Project Path="tests/CodeCiir.Reranking.OpenAI.Tests/CodeCiir.Reranking.OpenAI.Tests.csproj" />
+  </Folder>
+</Solution>

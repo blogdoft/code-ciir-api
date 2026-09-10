@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>b8f2e6a1-9c3d-4e7a-8f1b-2d5c6e9a0b3f</UserSecretsId>
+    <!-- Required for Swashbuckle to pick up XML doc comments as operation/schema descriptions. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Overridden with -p:Version at publish time once CI computes one; see .specs/08-ops-deployment.md. -->
+    <Version>0.0.0-dev</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BlogDoFT.Libs.ResultPattern" Version="1.12.0" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.17.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="10.2.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeCiir.Application\CodeCiir.Application.csproj" />
+    <ProjectReference Include="..\CodeCiir.Infrastructure.Database\CodeCiir.Infrastructure.Database.csproj" />
+    <ProjectReference Include="..\CodeCiir.Embeddings.Abstraction\CodeCiir.Embeddings.Abstraction.csproj" />
+    <ProjectReference Include="..\CodeCiir.Embeddings.Ollama\CodeCiir.Embeddings.Ollama.csproj" />
+    <ProjectReference Include="..\CodeCiir.Mcp\CodeCiir.Mcp.csproj" />
+    <ProjectReference Include="..\CodeCiir.Reranking.Abstraction\CodeCiir.Reranking.Abstraction.csproj" />
+    <ProjectReference Include="..\CodeCiir.Reranking.Ollama\CodeCiir.Reranking.Ollama.csproj" />
+    <ProjectReference Include="..\CodeCiir.Reranking.OpenAI\CodeCiir.Reranking.OpenAI.csproj" />
+  </ItemGroup>
+
+</Project>
