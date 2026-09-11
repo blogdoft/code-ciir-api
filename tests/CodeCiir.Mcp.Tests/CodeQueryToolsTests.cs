@@ -24,7 +24,8 @@ public sealed class CodeQueryToolsTests
     public async Task QueryProjectCodeAsync_PassesParametersThroughAndMapsMatchesAndGraph()
     {
         var match = new CodeQueryResult(1, "method", "C", "M", "C.M", "C.M()", "f.cs", "text", 0.9)
-            with { Relations = [new MatchRelation(1, 2, "calls", "C.N", "project")] };
+            with
+        { Relations = [new MatchRelation(1, 2, "calls", "C.N", "project")] };
         var node = new GraphNode(2, "method", "C", "N", "C.N", "C.N()", "f2.cs", 1);
         var edge = new GraphEdge(1, 2, "calls", "C.N", "project", 0);
         _codeQueryService.QueryAsync(

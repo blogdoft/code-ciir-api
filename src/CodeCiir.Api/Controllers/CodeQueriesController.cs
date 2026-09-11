@@ -182,6 +182,8 @@ public sealed class CodeQueriesController(ICodeQueryService codeQueryService, IF
         result.SymbolQualifiedName,
         result.SymbolCanonicalName,
         result.SourceFile,
+        result.GitUrl,
+        result.GitRawUrl,
         result.EmbeddingText,
         result.Similarity,
         result.RerankScore,

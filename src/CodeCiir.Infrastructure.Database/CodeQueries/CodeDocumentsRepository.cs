@@ -48,9 +48,15 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
                  , cd.symbol_qualified_name AS SymbolQualifiedName
                  , cd.symbol_canonical_name AS SymbolCanonicalName
                  , cd.source_path AS SourceFile
+                 , p.git_url AS GitUrl
+                 , CASE
+                       WHEN p.git_raw_url IS NULL THEN NULL
+                       ELSE RTRIM(p.git_raw_url, '/') || '/' || LTRIM(cd.source_path, '/')
+                   END AS GitRawUrl
                  , cd.embedding_text AS EmbeddingText
                  , ROUND((1 - (cd.embedding <=> @Embedding))::numeric, 10)::float8 AS Similarity
             FROM public.ciir_documents cd
+            INNER JOIN public.projects p ON p.id = cd.project_id
             WHERE {newFiltersPrefix}cd.embedding IS NOT NULL
               AND (1 - (cd.embedding <=> @Embedding)) >= @MinSimilarity
             ORDER BY cd.embedding <=> @Embedding
@@ -106,6 +112,8 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
         string? SymbolQualifiedName,
         string? SymbolCanonicalName,
         string? SourceFile,
+        string? GitUrl,
+        string? GitRawUrl,
         string? EmbeddingText,
         double Similarity)
     {
@@ -118,7 +126,9 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
             SymbolCanonicalName,
             SourceFile,
             EmbeddingText,
-            Similarity);
+            Similarity,
+            GitUrl: GitUrl is null ? null : new Uri(GitUrl, UriKind.Absolute),
+            GitRawUrl: GitRawUrl is null ? null : new Uri(GitRawUrl, UriKind.Absolute));
     }
 #pragma warning restore SA1313
 }

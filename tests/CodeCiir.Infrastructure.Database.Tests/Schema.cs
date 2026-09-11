@@ -17,6 +17,8 @@ internal static class Schema
             name text NOT NULL,
             embedding_model text NOT NULL,
             embedding_dimensions integer NOT NULL,
+            git_url text,
+            git_raw_url text,
             created_at timestamptz NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
             updated_at timestamptz NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
             CONSTRAINT ux_projects_name UNIQUE (name)

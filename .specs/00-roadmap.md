@@ -79,7 +79,7 @@ documentos, 4429 relações, grau de saída médio 8.53 (máximo 48).
 | 2 | [`03-projects-endpoint.md`](./03-projects-endpoint.md) | `GET/POST/PUT/DELETE /api/v1/projects[...]` adaptado a `code3rag` | Fase 0 | **Concluído** |
 | 3 | [`04-code-queries-baseline.md`](./04-code-queries-baseline.md) | `POST .../code-queries` — busca vetorial baseline (paridade com code-rag-api, sem grafo ainda) | Fase 0, 2 | **Concluído** |
 | 4 | [`05-code-queries-relationship-graph.md`](./05-code-queries-relationship-graph.md) | **Requisito central**: expansão de até 2 níveis do grafo de relações, todas as relações | Fase 0, 3 | **Concluído** |
-| 5 | [`06-code-query-feedback.md`](./06-code-query-feedback.md) | Paridade opcional de feedback/stats/export | Fase 0, 4 | **Concluído** — DDL aplicada em `code3rag` real via migration em `code-ciir-indexer`, validado ponta a ponta |
+| 5 | [`06-code-query-feedback.md`](./06-code-query-feedback.md) | Paridade de feedback/stats/export | Fase 0, 4 | **Concluído** — submissão validada ponta a ponta contra `code3rag` real; `stats`/`export` implementados e testados (mock HTTP + Testcontainers), ainda não validados contra `code3rag` real |
 | 6 | [`07-mcp-tools.md`](./07-mcp-tools.md) | Tools MCP espelhando o REST (`list_projects`, `query_project_code`, ...) | Fase 2, 3, 4 | **Concluído** |
 | 7 | [`08-ops-deployment.md`](./08-ops-deployment.md) | Forgejo CI/CD, imagem Docker, manifests k8s, ingress `code-ciir-api.home.arpa` | Fase 1 | **Manifests concluídos e validados**; deploy real pendente |
 | 8 | [`09-code-queries-filters.md`](./09-code-queries-filters.md) | Filtros `kind`/`qualifiedName`, paginação `size`/`page`, `projectId` opcional no body (sai da rota) em `code-queries`; embedding da pergunta passa a usar modelo configurado na aplicação | Fase 3, 4 | **Concluído** (paginação revertida na Fase 10) |
@@ -102,9 +102,10 @@ adiados sem bloquear a entrega do requisito central.
 
 ## Decisões em aberto (a resolver durante as fases correspondentes, não bloqueiam o plano)
 
-- **Projects é read-only ou CRUD completo em `code-ciir-api`?** `code-ciir-indexer` é quem
-  cria/atualiza projetos em `code3rag`; `code-ciir-api` escrever na mesma tabela cria um
-  cenário de dois escritores. Proposta em `03-projects-endpoint.md`: read-only por padrão.
+- ~~**Projects é read-only ou CRUD completo em `code-ciir-api`?**~~ **Resolvido**: CRUD
+  completo, a pedido explícito do usuário, revertendo a proposta original de read-only. O
+  risco de dois escritores sem coordenação com `code-ciir-indexer` foi conscientemente
+  aceito, não mitigado — ver seção "Reversão" em `03-projects-endpoint.md`.
 - **Forma da resposta do grafo em code-queries**: nós aninhados por resultado vs. resposta
   em formato grafo (`{ matches, graph: { nodes, edges } }`). Proposta em
   `05-code-queries-relationship-graph.md`.

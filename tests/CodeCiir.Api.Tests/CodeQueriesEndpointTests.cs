@@ -19,7 +19,18 @@ public sealed class CodeQueriesEndpointTests(CustomWebApplicationFactory factory
     {
         var matches = new[]
         {
-            new CodeQueryResult(1, "method", "Foo.Bar", "Baz", "Foo.Bar.Baz", "Foo.Bar.Baz()", "src/Baz.cs", "text", 0.87)
+            new CodeQueryResult(
+                1,
+                "method",
+                "Foo.Bar",
+                "Baz",
+                "Foo.Bar.Baz",
+                "Foo.Bar.Baz()",
+                "src/Baz.cs",
+                "text",
+                0.87,
+                GitUrl: new Uri("https://github.com/acme/widgets"),
+                GitRawUrl: new Uri("https://raw.githubusercontent.com/acme/widgets/main/src/Baz.cs"))
                 with { Relations = [new MatchRelation(1, 2, "calls", "Foo.Bar.Qux", "project")] },
         };
         var graph = new CodeGraph(
@@ -41,6 +52,8 @@ public sealed class CodeQueriesEndpointTests(CustomWebApplicationFactory factory
         var matchesJson = body.GetProperty("matches");
         matchesJson.GetArrayLength().ShouldBe(1);
         matchesJson[0].GetProperty("symbol_qualified_name").GetString().ShouldBe("Foo.Bar.Baz");
+        matchesJson[0].GetProperty("git_url").GetString().ShouldBe("https://github.com/acme/widgets");
+        matchesJson[0].GetProperty("git_raw_url").GetString().ShouldBe("https://raw.githubusercontent.com/acme/widgets/main/src/Baz.cs");
         var relationsJson = matchesJson[0].GetProperty("relations");
         relationsJson.GetArrayLength().ShouldBe(1);
         relationsJson[0].GetProperty("relation_type").GetString().ShouldBe("calls");

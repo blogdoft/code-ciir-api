@@ -21,9 +21,17 @@ public sealed class ProjectToolsTests
     [Fact]
     public async Task ListProjectsAsync_PassesNameFilterThrough()
     {
-        var project = new Project(1, "proj", "bge-m3", 1024, DateTime.UtcNow, DateTime.UtcNow);
-        _projectsService.ListAsync("proj", Arg.Any<CancellationToken>())
-            .Returns(Result<IEnumerable<Project>>.FromSuccess([project]));
+        var project = new Project(
+            1,
+            "proj",
+            "bge-m3",
+            1024,
+            new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
+            new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
+            DateTime.UtcNow,
+            DateTime.UtcNow);
+        _projectsService.ListAsync("proj", null, null, Arg.Any<CancellationToken>())
+            .Returns(Result<ProjectPage>.FromSuccess(new ProjectPage([project], 0, 20, 1, 1)));
 
         var result = await _sut.ListProjectsAsync("proj");
 
@@ -33,10 +41,22 @@ public sealed class ProjectToolsTests
     }
 
     [Fact]
+    public async Task ListProjectsAsync_PassesPageAndPageSizeThrough()
+    {
+        _projectsService.ListAsync(null, 2, 5, Arg.Any<CancellationToken>())
+            .Returns(Result<ProjectPage>.FromSuccess(new ProjectPage([], 2, 5, 0, 0)));
+
+        var result = await _sut.ListProjectsAsync(page: 2, pageSize: 5);
+
+        result.ShouldBeEmpty();
+        await _projectsService.Received(1).ListAsync(null, 2, 5, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ListProjectsAsync_FailureResult_ThrowsMcpException()
     {
-        _projectsService.ListAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(Result<IEnumerable<Project>>.FromFailure(ProjectFailures.NameFilterTooLong(200)));
+        _projectsService.ListAsync(Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+            .Returns(Result<ProjectPage>.FromFailure(ProjectFailures.NameFilterTooLong(200)));
 
         await Should.ThrowAsync<McpException>(() => _sut.ListProjectsAsync(new string('a', 201)));
     }

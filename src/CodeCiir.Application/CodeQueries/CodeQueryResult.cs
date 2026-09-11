@@ -18,5 +18,7 @@ public sealed record CodeQueryResult(
     string? EmbeddingText,
     double Similarity,
     double? RerankScore = null,
-    IReadOnlyList<MatchRelation>? Relations = null);
+    IReadOnlyList<MatchRelation>? Relations = null,
+    Uri? GitUrl = null,
+    Uri? GitRawUrl = null);
 #pragma warning restore SA1313

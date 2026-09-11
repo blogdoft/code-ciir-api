@@ -1,4 +1,3 @@
-using CodeCiir.Reranking.Abstraction;
 using Shouldly;
 using Xunit;
 

@@ -13,6 +13,11 @@ namespace CodeCiir.Api.Contracts;
 /// <param name="SymbolQualifiedName">Dotted qualified name, without parameter types.</param>
 /// <param name="SymbolCanonicalName">Full signature, disambiguating overloads.</param>
 /// <param name="SourceFile">Path of the source file the symbol was indexed from.</param>
+/// <param name="GitUrl">Public Git URL of the project that owns the symbol.</param>
+/// <param name="GitRawUrl">
+/// Public raw-file URL for the symbol. This is the project's <c>git_raw_url</c> concatenated
+/// with the indexed source path; null when the project has no <c>git_raw_url</c>.
+/// </param>
 /// <param name="EmbeddingText">The text that was actually embedded for this document.</param>
 /// <param name="Similarity">Cosine similarity between the question and this document, 0.0-1.0.</param>
 /// <param name="RerankScore">
@@ -35,6 +40,8 @@ public sealed record CodeQueryResultResponse(
     string? SymbolQualifiedName,
     string? SymbolCanonicalName,
     string? SourceFile,
+    Uri? GitUrl,
+    Uri? GitRawUrl,
     string? EmbeddingText,
     double Similarity,
     double? RerankScore,

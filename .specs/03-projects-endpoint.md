@@ -1,12 +1,11 @@
 # Fase 2 — `/api/v1/projects` adaptado a `code3rag`
 
-**Status: concluído.** `GET /api/v1/projects[?name=]` e `GET /api/v1/projects/{projectId}`
-implementados exatamente como proposto abaixo (read-only, sem `git_url`/`git_raw_url`,
-com `embedding_model`/`embedding_dimensions`). 18 testes verdes (7 unit +
-`ProjectsServiceTests`, 5 Testcontainers + `ProjectsRepositoryTests`, 6 HTTP end-to-end +
-`ProjectsEndpointTests`, com `IProjectsService` substituído via NSubstitute).
+**Status: concluído, revisado.** `GET /api/v1/projects[?name=][&page=][&page_size=]` (paginado),
+`GET /api/v1/projects/{projectId}`, `POST /api/v1/projects`, `PUT /api/v1/projects/{projectId}`
+e `DELETE /api/v1/projects/{projectId}` estão todos implementados - CRUD completo, revertendo a
+decisão original de manter o endpoint somente leitura (ver "Reversão" abaixo).
 
-**⚠️ Achado durante a implementação, não previsto no plano**: `[ApiController]` reescreve
+**⚠️ Achado durante a implementação original, não previsto no plano**: `[ApiController]` reescreve
 um `NotFoundResult()` vazio em um corpo JSON de Problem Details automaticamente, a menos
 que `ApiBehaviorOptions.SuppressMapClientErrors = true` seja configurado em `Program.cs`
 — sem isso, `GET /projects/{id}` para um id inexistente devolvia 404 **com corpo**,
@@ -23,30 +22,59 @@ indexação. Em `code-ciir-api`, `public.projects` em `code3rag` é populada por
 `code-ciir-indexer`, um serviço externo a este (confirmado: 21 projetos já existem em
 produção, um por artefato/csproj indexado).
 
-## Decisão proposta: Projects é read-only em `code-ciir-api`
+## Decisão original (Fase 2): Projects somente leitura — **revertida**
 
-**A confirmar com o usuário antes de implementar.** Racional: se `indexer-api` já cria/
-gerencia projetos como parte do seu próprio fluxo de indexação, `code-ciir-api` escrever
-na mesma tabela (`POST`/`PUT`/`DELETE`) cria um cenário de dois escritores independentes
-sem coordenação — risco de nomes duplicados, de `code-ciir-api` apagar um projeto que
-`indexer-api` ainda está indexando, etc. Também é o padrão mais simples e mais seguro para
-uma primeira versão.
+A primeira versão desta fase implementou apenas `GET /api/v1/projects[?name=]` e
+`GET /api/v1/projects/{projectId}`, com o racional de que escrever na mesma tabela que
+`code-ciir-indexer` gerencia criaria dois escritores independentes sem coordenação (risco
+de nomes duplicados, de `code-ciir-api` apagar um projeto que `indexer-api` ainda está
+indexando, etc.).
 
-Se confirmado, o contrato desta fase fica:
+**Essa decisão foi revertida a pedido explícito do usuário**: o CRUD completo
+(`POST`/`PUT`/`DELETE`) foi implementado mesmo assim, sem um mecanismo de coordenação
+formal com `code-ciir-indexer` (ex.: lock distribuído, fila de eventos). O risco de dois
+escritores sem coordenação descrito acima **permanece real e não foi mitigado** por esta
+implementação — ele foi conscientemente aceito pelo usuário como tradeoff aceitável para
+obter CRUD completo agora. Pontos a que qualquer consumidor/operador deste serviço deve
+atentar:
 
-- `GET /api/v1/projects?name=` — mantido, idêntico em espírito ao code-rag-api (filtro
-  parcial case-insensitive por nome).
+- `code-ciir-api` e `code-ciir-indexer` podem, em teoria, tentar criar/atualizar um projeto
+  de mesmo nome quase simultaneamente. A checagem de unicidade em `ProjectsService` (via
+  `IProjectsRepository.ExistsByNameAsync`) faz um *check-then-act* não atômico — não há
+  `SELECT ... FOR UPDATE`, advisory lock, nem retry em caso de violação de constraint
+  única (`ux_projects_name`). Numa colisão de timing real, o segundo `INSERT` simplesmente
+  falha com uma exceção do Npgsql não tratada (500), não um 409 "bonito".
+- `DELETE /api/v1/projects/{projectId}` apaga a linha de `projects` sem tocar
+  `ciir_documents`/`ciir_relations` (não há `ON DELETE CASCADE` de `projects` para essas
+  tabelas, conforme `01-schema-discovery.md` — as FKs em cascata são de `ciir_relations`
+  para `ciir_documents`, não de `ciir_documents`/`ciir_relations` para `projects`). Isso
+  deixa `ciir_documents`/`ciir_relations` órfãos apontando para um `project_id` inexistente
+  se um projeto for deletado por esta API enquanto ainda tem documentos indexados. Nenhuma
+  validação/bloqueio foi adicionado para impedir isso.
+- Se `code-ciir-indexer` reprocessar/recriar um projeto que esta API deletou (ou
+  vice-versa), o comportamento resultante depende inteiramente de timing, não de um
+  protocolo acordado entre os dois serviços.
+
+Se esses riscos se tornarem um problema real em produção, a mitigação recomendada (fora do
+escopo desta fase) é ou (a) voltar ao read-only original neste serviço, ou (b) desenhar um
+mecanismo de coordenação explícito com o time de `code-ciir-indexer` (fila de eventos,
+lock distribuído, ou uma flag de "gerenciado externamente" por projeto).
+
+## Contrato implementado
+
+- `GET /api/v1/projects?name=&page=&page_size=` — paginado (page zero-based, default 0;
+  page_size default 20, máx. 100), com filtro parcial case-insensitive por nome. Resposta
+  200 traz um envelope `{items, page, page_size, total_count, total_pages}` (antes era um
+  array simples — mudança de contrato em relação à versão read-only original).
 - `GET /api/v1/projects/{projectId}` — mantido.
-- `POST /api/v1/projects`, `PUT /api/v1/projects/{projectId}`,
-  `DELETE /api/v1/projects/{projectId}` — **removidos** do contrato desta API (não
-  expostos), ou implementados como `501 Not Implemented` explícito se o usuário preferir
-  manter os paths no OpenAPI por paridade documental. Preferência: **remover** — um
-  endpoint que sempre falha é pior sinal para um consumidor do que um endpoint ausente.
-
-Se o usuário rejeitar essa proposta (quiser CRUD completo mesmo assim), esta seção deve
-ser reescrita descrevendo o mecanismo de coordenação com `indexer-api` (ex.: `code-ciir-api`
-só pode criar projetos que `indexer-api` ainda não conhece, ou os dois passam a usar um
-`SELECT ... FOR UPDATE`/constraint de unicidade como árbitro) antes de implementar.
+- `POST /api/v1/projects` — cria um projeto (`name`, `embedding_model`,
+  `embedding_dimensions` obrigatórios). 201 com `Location` apontando para
+  `GET /projects/{id}`; 409 se já existe projeto com o mesmo nome.
+- `PUT /api/v1/projects/{projectId}` — substitui todos os campos de um projeto existente
+  (replace completo, não patch parcial). 200 com o registro atualizado; 404 se o id não
+  existe; 409 se o novo nome já pertence a outro projeto.
+- `DELETE /api/v1/projects/{projectId}` — remove o projeto. 204 sem corpo; 404 se o id não
+  existe. Não remove `ciir_documents`/`ciir_relations` associados (ver riscos acima).
 
 ## Mapeamento de campos (confirmado via introspecção ao vivo em `code3rag`)
 
@@ -57,31 +85,53 @@ importantes:
 |---|---|
 | `id` (int64) | `id` bigint PK identity |
 | `name` (string, unique) | `name` text NOT NULL UNIQUE |
-| `git_url` (string?, ≤2000) | **não existe** — remover do contrato, não expor como sempre-`null` |
-| `git_raw_url` (string?, ≤2000) | **não existe** — mesma remoção; consequência direta: `CodeQueryResultResponse.gitUrl`/`gitRawUrl` também deixam de existir no contrato desta API (ver `04-code-queries-baseline.md`) |
+| `git_url` (string?, ≤2000) | **não existe** — removido do contrato, não exposto como sempre-`null` |
+| `git_raw_url` (string?, ≤2000) | **não existe** — mesma remoção; consequência direta: `CodeQueryResultResponse.gitUrl`/`gitRawUrl` também não existem no contrato desta API (ver `04-code-queries-baseline.md`) |
 | `created_at` (timestamptz) | `created_at` timestamptz NOT NULL default now() UTC |
-| — (sem equivalente no code-rag-api) | **`embedding_model`** (text NOT NULL) — novo campo, expor no `ProjectResponse`: identifica qual modelo de embedding esse projeto usa, informação necessária para o cliente entender por que a mesma pergunta pode ter relevância diferente entre projetos com modelos distintos |
-| — | **`embedding_dimensions`** (integer NOT NULL) — novo campo, mesma razão acima |
-| — | **`updated_at`** (timestamptz NOT NULL) — novo campo, expor por completude |
+| — (sem equivalente no code-rag-api) | **`embedding_model`** (text NOT NULL) — identifica qual modelo de embedding esse projeto usa, informação necessária para o cliente entender por que a mesma pergunta pode ter relevância diferente entre projetos com modelos distintos |
+| — | **`embedding_dimensions`** (integer NOT NULL) — mesma razão acima |
+| — | **`updated_at`** (timestamptz NOT NULL) — exposto por completude |
 
-Proposta de `ProjectResponse` para `code-ciir-api`: `id`, `name`, `embedding_model`,
-`embedding_dimensions`, `created_at`, `updated_at` — sem `git_url`/`git_raw_url`.
+`ProjectResponse` em `code-ciir-api`: `id`, `name`, `embedding_model`,
+`embedding_dimensions`, `created_at`, `updated_at` — sem `git_url`/`git_raw_url`. Usado
+tanto nas respostas de leitura quanto nas de `POST`/`PUT`.
+
+## Validação (camada de aplicação, `ProjectsService`)
+
+- `name`: obrigatório, não branco, máx. 200 caracteres (`ProjectsService.MaxNameLength`).
+- `embedding_model`: obrigatório, não branco, máx. 200 caracteres
+  (`ProjectsService.MaxEmbeddingModelLength`).
+- `embedding_dimensions`: obrigatório, inteiro positivo.
+- Unicidade de `name`: checada via `IProjectsRepository.ExistsByNameAsync` antes de
+  `INSERT`/`UPDATE` (excluindo o próprio id no caso de `UPDATE`) — ver limitação de
+  race condition na seção "Reversão" acima.
+- `page`: opcional, default 0, não pode ser negativo.
+- `page_size`: opcional, default 20, deve estar entre 1 e 100
+  (`ProjectsService.DefaultPageSize`/`MaxPageSize`).
 
 ## Erros
 
-Mantém o padrão RFC 7807 do code-rag-api: 400 para `projectId` não-numérico/negativo
-(reutilizar `RouteId.TryParsePositive`, ver `02-bootstrap-solution.md`), 404 sem corpo
-para projeto inexistente, 500 para exceção não tratada. Sem 409 (não há mais `POST`/`PUT`
-para colidir em nome).
+Mantém o padrão RFC 7807: 400 para campos ausentes/inválidos (`name`, `embedding_model`,
+`embedding_dimensions`, `page`, `page_size`) ou `projectId` não-numérico/negativo (reutiliza
+`RouteId.TryParsePositive`, ver `02-bootstrap-solution.md`), 404 sem corpo para projeto
+inexistente (`GET`/`PUT`/`DELETE`), 409 para nome duplicado (`POST`/`PUT`), 500 para exceção
+não tratada (inclui a colisão de nome não capturada mencionada na seção "Reversão").
 
 ## MCP
 
-`list_projects` mantido (mirror de `GET /projects`), mesma assinatura do code-rag-api.
+`list_projects` mantido (mirror de `GET /projects`), agora com `page`/`page_size`
+opcionais espelhando a paginação da API REST; segue retornando uma lista simples (sem o
+envelope de paginação do REST). Não há ferramentas MCP para `create`/`update`/`delete` —
+fora do escopo desta revisão, que tratou apenas do endpoint HTTP.
 
 ## Verificação de saída desta fase
 
-- Testes de integração confirmando que `GET /projects` e `GET /projects/{id}` batem com
-  dados reais existentes em `code3rag` (não dados sintéticos criados pelo próprio teste,
-  já que este serviço não escreve nessa tabela — Testcontainers desta fase precisa seedar
-  a tabela de projetos artificialmente com o schema real confirmado na Fase 0, não usar
-  `code3rag` de produção nos testes).
+- Testes de integração (Testcontainers) cobrindo `SearchAsync` (paginado),
+  `ExistsByNameAsync`, `InsertAsync`, `UpdateAsync`, `DeleteAsync` além dos já existentes
+  `GetByIdAsync` — `ProjectsRepositoryTests`.
+- Testes de unidade de `ProjectsService` cobrindo validação de campos, conflito de nome e
+  paginação — `ProjectsServiceTests`.
+- Testes HTTP end-to-end (`IProjectsService` substituído via NSubstitute) cobrindo os cinco
+  verbos, incluindo os novos códigos 201/409 — `ProjectsEndpointTests`.
+- Suíte completa (`dotnet test`) verde após a mudança, incluindo os testes de integração
+  reais contra Postgres via Testcontainers.

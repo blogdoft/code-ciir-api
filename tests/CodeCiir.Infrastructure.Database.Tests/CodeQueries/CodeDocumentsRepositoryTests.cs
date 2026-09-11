@@ -162,16 +162,55 @@ public sealed class CodeDocumentsRepositoryTests(PostgresFixture fixture)
         results.Select(r => r.Id).ShouldBe([closestId]);
     }
 
-    private async Task<long> InsertProjectAsync()
+    [Fact]
+    public async Task SearchAsync_ReturnsProjectGitUrlsAndConcatenatesRawUrlWithSourcePath()
+    {
+        const string gitUrl = "https://github.com/acme/widgets";
+        const string gitRawUrl = "https://raw.githubusercontent.com/acme/widgets/main/";
+        const string sourcePath = "src/Widgets/Widget.cs";
+        var projectId = await InsertProjectAsync(gitUrl, gitRawUrl);
+        await InsertDocumentAsync(projectId, "widget", [1f, 0f, 0f], sourcePath: sourcePath);
+
+        var result = (await _sut.SearchAsync([1f, 0f, 0f], null, projectId, null, null, null, limit: 10)).Single();
+
+        result.GitUrl.ShouldBe(new Uri(gitUrl));
+        result.GitRawUrl.ShouldBe(new Uri(gitRawUrl + sourcePath));
+    }
+
+    [Fact]
+    public async Task SearchAsync_ReturnsNullRawUrlWhenProjectRawUrlIsNull()
+    {
+        var projectId = await InsertProjectAsync(gitRawUrl: null);
+        await InsertDocumentAsync(projectId, "widget", [1f, 0f, 0f], sourcePath: "src/Widgets/Widget.cs");
+
+        var result = (await _sut.SearchAsync([1f, 0f, 0f], null, projectId, null, null, null, limit: 10)).Single();
+
+        result.GitRawUrl.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("https://raw.githubusercontent.com/acme/widgets/main", "src/Widgets/Widget.cs")]
+    [InlineData("https://raw.githubusercontent.com/acme/widgets/main/", "/src/Widgets/Widget.cs")]
+    public async Task SearchAsync_RawUrlAndSourcePath_AreSeparatedByExactlyOneSlash(string gitRawUrl, string sourcePath)
+    {
+        var projectId = await InsertProjectAsync(gitRawUrl: gitRawUrl);
+        await InsertDocumentAsync(projectId, "widget", [1f, 0f, 0f], sourcePath: sourcePath);
+
+        var result = (await _sut.SearchAsync([1f, 0f, 0f], null, projectId, null, null, null, limit: 10)).Single();
+
+        result.GitRawUrl.ShouldBe(new Uri("https://raw.githubusercontent.com/acme/widgets/main/src/Widgets/Widget.cs"));
+    }
+
+    private async Task<long> InsertProjectAsync(string? gitUrl = null, string? gitRawUrl = null)
     {
         await using var connection = await fixture.DataSource.OpenConnectionAsync();
         return await connection.ExecuteScalarAsync<long>(
             """
-            INSERT INTO public.projects (name, embedding_model, embedding_dimensions)
-            VALUES (@Name, 'test-model', 3)
+            INSERT INTO public.projects (name, embedding_model, embedding_dimensions, git_url, git_raw_url)
+            VALUES (@Name, 'test-model', 3, @GitUrl, @GitRawUrl)
             RETURNING id
             """,
-            new { Name = $"proj-{Guid.NewGuid():N}" });
+            new { Name = $"proj-{Guid.NewGuid():N}", GitUrl = gitUrl, GitRawUrl = gitRawUrl });
     }
 
     private async Task<long> InsertDocumentAsync(
@@ -179,15 +218,16 @@ public sealed class CodeDocumentsRepositoryTests(PostgresFixture fixture)
         string symbolName,
         float[]? embedding,
         string kind = "method",
-        string? qualifiedName = null)
+        string? qualifiedName = null,
+        string? sourcePath = null)
     {
         await using var connection = await fixture.DataSource.OpenConnectionAsync();
         return await connection.ExecuteScalarAsync<long>(
             """
             INSERT INTO public.ciir_documents
-                (project_id, ciir_id, schema_version, kind, language, symbol_name, symbol_qualified_name, embedding_text, content, embedding)
+                (project_id, ciir_id, schema_version, kind, language, symbol_name, symbol_qualified_name, source_path, embedding_text, content, embedding)
             VALUES
-                (@ProjectId, @CiirId, '1.0', @Kind, 'csharp', @SymbolName, @QualifiedName, @SymbolName, '{}'::jsonb, @Embedding)
+                (@ProjectId, @CiirId, '1.0', @Kind, 'csharp', @SymbolName, @QualifiedName, @SourcePath, @SymbolName, '{}'::jsonb, @Embedding)
             RETURNING id
             """,
             new
@@ -197,6 +237,7 @@ public sealed class CodeDocumentsRepositoryTests(PostgresFixture fixture)
                 Kind = kind,
                 SymbolName = symbolName,
                 QualifiedName = qualifiedName,
+                SourcePath = sourcePath,
                 Embedding = embedding is null ? null : new Vector(embedding),
             });
     }

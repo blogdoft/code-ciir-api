@@ -28,4 +28,13 @@ public static class FeedbackFailures
 
     public static Failure ReasonTooLong(int maxLength) => new(
         "400-reason-too-long", $"The 'reason' field must not exceed {maxLength} characters.");
+
+    public static Failure InvalidDateRange() => new(
+        "400-invalid-date-range", "The 'start_date' must not be after 'end_date'.");
+
+    public static Failure WindowTooLarge() => new(
+        "400-window-too-large", "The requested time window must not exceed 366 days (12 months).");
+
+    public static Failure InvalidTimezone(string timezone) => new(
+        "400-invalid-timezone", $"'{timezone}' is not a recognized IANA time zone name.");
 }

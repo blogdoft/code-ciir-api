@@ -11,7 +11,15 @@ namespace CodeCiir.Application.Tests.CodeQueries;
 
 public sealed class CodeQueryServiceTests
 {
-    private static readonly Project TestProject = new(1, "proj", "bge-m3", 1024, DateTime.UtcNow, DateTime.UtcNow);
+    private static readonly Project TestProject = new(
+        1,
+        "proj",
+        "bge-m3",
+        1024,
+        new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
+        new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
+        DateTime.UtcNow,
+        DateTime.UtcNow);
 
     private readonly IProjectsRepository _projectsRepository = Substitute.For<IProjectsRepository>();
     private readonly ICodeDocumentsRepository _codeDocumentsRepository = Substitute.For<ICodeDocumentsRepository>();
