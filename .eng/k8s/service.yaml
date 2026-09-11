@@ -6,8 +6,9 @@ metadata:
     # Applies the code-ciir-api-transport ServersTransport (serverstransport.yaml) to give
     # Traefik a 120s response-header timeout for this backend instead of the default unlimited
     # wait, so slow reranking requests get a bounded, generous ceiling instead of an
-    # inconsistent 504 further upstream. Format: <namespace>-<serverstransport-name>@kubernetescrd.
-    traefik.ingress.kubernetes.io/service.serverstransport: code-ciir-api-code-ciir-api-transport@kubernetescrd
+    # inconsistent 504 further upstream. The ArgoCD application deploys this service into
+    # code-rag. Format: <namespace>-<serverstransport-name>@kubernetescrd.
+    traefik.ingress.kubernetes.io/service.serverstransport: code-rag-code-ciir-api-transport@kubernetescrd
 spec:
   selector:
     app: code-ciir-api
