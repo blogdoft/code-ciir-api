@@ -130,8 +130,8 @@ public sealed class ProjectsEndpointTests(CustomWebApplicationFactory factory) :
                 "proj-7",
                 "bge-m3",
                 1024,
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
+                null,
+                null,
                 Arg.Any<CancellationToken>())
             .Returns(Result<Project>.FromSuccess(created));
 
@@ -157,8 +157,8 @@ public sealed class ProjectsEndpointTests(CustomWebApplicationFactory factory) :
                 "dup",
                 "bge-m3",
                 1024,
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
+                null,
+                null,
                 Arg.Any<CancellationToken>())
             .Returns(Result<Project>.FromFailure(ProjectFailures.NameConflict("dup")));
 
@@ -180,8 +180,8 @@ public sealed class ProjectsEndpointTests(CustomWebApplicationFactory factory) :
                 null,
                 "bge-m3",
                 1024,
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
+                null,
+                null,
                 Arg.Any<CancellationToken>())
             .Returns(Result<Project>.FromFailure(ProjectFailures.NameRequired()));
 
@@ -204,8 +204,8 @@ public sealed class ProjectsEndpointTests(CustomWebApplicationFactory factory) :
                 "renamed",
                 "bge-m3",
                 1024,
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
+                null,
+                null,
                 Arg.Any<CancellationToken>())
             .Returns(Result<Project>.FromSuccess(updated));
 
@@ -252,8 +252,8 @@ public sealed class ProjectsEndpointTests(CustomWebApplicationFactory factory) :
                 "proj",
                 "bge-m3",
                 1024,
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
-                new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
+                null,
+                null,
                 Arg.Any<CancellationToken>())
             .Returns(Result<Project>.FromFailure(ProjectFailures.ProjectNotFound(999)));
 
