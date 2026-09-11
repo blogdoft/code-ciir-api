@@ -147,6 +147,15 @@ try
         app.MapScalarApiReference(options => options.WithOpenApiRoutePattern("/swagger/v1/swagger.json"));
     }
 
+    // Keep probe traffic out of the request-logging middleware. This is intentionally a
+    // terminal branch rather than an MVC endpoint so Kubernetes' frequent checks never emit
+    // request logs, irrespective of the configured Serilog level.
+    app.Map("/health", healthApp => healthApp.Run(context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        return Task.CompletedTask;
+    }));
+
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
     app.UseAuthorization();

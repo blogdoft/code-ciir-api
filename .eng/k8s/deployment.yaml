@@ -43,15 +43,14 @@ spec:
                   name: code-ciir-secrets
                   key: connection-string
           readinessProbe:
-            # Touches the database (ProjectsRepository) - a meaningful readiness signal beyond
-            # "the process is up", since every real endpoint needs code3rag reachable.
             httpGet:
-              path: /api/v1/projects
+              path: /health
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20
