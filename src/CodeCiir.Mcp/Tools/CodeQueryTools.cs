@@ -8,7 +8,10 @@ using System.ComponentModel;
 namespace CodeCiir.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class CodeQueryTools(ICodeQueryService codeQueryService, IFeedbackService feedbackService)
+public sealed class CodeQueryTools(
+    ICodeQueryService codeQueryService,
+    IFeedbackService feedbackService,
+    ICodeDocumentSourceService codeDocumentSourceService)
 {
     [McpServerTool(Name = "query_project_code")]
     [Description(
@@ -22,6 +25,7 @@ public sealed class CodeQueryTools(ICodeQueryService codeQueryService, IFeedback
         "every match's `relations` are only populated when projectId is given. Use " +
         "`graph.edges`/`graph.nodes` to explore structural context beyond the matched text itself " +
         "- e.g. a match's callers, or what it depends on. Follow up with " +
+        "get_code_source using a selected `matches[].id` when you need the file path or raw Git URL. " +
         "submit_code_query_feedback reporting whether the results were useful.")]
     public async Task<CodeQueryToolResult> QueryProjectCodeAsync(
         [Description("Natural language question describing the code being looked for.")] string question,
@@ -38,6 +42,22 @@ public sealed class CodeQueryTools(ICodeQueryService codeQueryService, IFeedback
 
         return result.Map(
             onSuccess: ToResult,
+            onFailure: failure => throw new McpException(failure.Message));
+    }
+
+    [McpServerTool(Name = "get_code_source")]
+    [Description(
+        "Use this after query_project_code, passing a selected `matches[].id`. Returns the " +
+        "source-file path from the project root and, when configured, the direct raw Git URL " +
+        "for that same file. It returns file references only; it does not download file contents.")]
+    public async Task<CodeSourceToolResult> GetCodeSourceAsync(
+        [Description("Exact id of a selected item in query_project_code's `matches`; this is not a projectId or graph node/edge id.")] long documentId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await codeDocumentSourceService.GetAsync(documentId, cancellationToken);
+
+        return result.Map(
+            onSuccess: source => new CodeSourceToolResult(source.DocumentId, source.SourceFile, source.GitRawUrl),
             onFailure: failure => throw new McpException(failure.Message));
     }
 

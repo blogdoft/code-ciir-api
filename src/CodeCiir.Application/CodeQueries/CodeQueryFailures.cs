@@ -20,6 +20,14 @@ public static class CodeQueryFailures
         "400-project-id-invalid",
         "The 'projectId' field must be a positive integer when provided.");
 
+    public static Failure CodeDocumentIdInvalid() => new(
+        "400-code-document-id-invalid",
+        "The 'documentId' field must be a positive integer.");
+
+    public static Failure CodeDocumentNotFound(long documentId) => new(
+        "404-code-document-not-found",
+        $"Code document with id {documentId} was not found.");
+
     public static Failure KindFilterValueRequired() => new(
         "400-kind-filter-value-required",
         "The 'kind' field must not be empty or blank when provided.");

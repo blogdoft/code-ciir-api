@@ -3,8 +3,11 @@ using CodeCiir.Application.CodeQueries;
 using CodeCiir.Application.Feedback;
 using CodeCiir.Mcp.Tools;
 using ModelContextProtocol;
+using ModelContextProtocol.Server;
 using NSubstitute;
 using Shouldly;
+using System.ComponentModel;
+using System.Reflection;
 using Xunit;
 
 namespace CodeCiir.Mcp.Tests;
@@ -13,11 +16,12 @@ public sealed class CodeQueryToolsTests
 {
     private readonly ICodeQueryService _codeQueryService = Substitute.For<ICodeQueryService>();
     private readonly IFeedbackService _feedbackService = Substitute.For<IFeedbackService>();
+    private readonly ICodeDocumentSourceService _codeDocumentSourceService = Substitute.For<ICodeDocumentSourceService>();
     private readonly CodeQueryTools _sut;
 
     public CodeQueryToolsTests()
     {
-        _sut = new CodeQueryTools(_codeQueryService, _feedbackService);
+        _sut = new CodeQueryTools(_codeQueryService, _feedbackService, _codeDocumentSourceService);
     }
 
     [Fact]
@@ -74,6 +78,43 @@ public sealed class CodeQueryToolsTests
             .Returns(Result<CodeQueryResponse>.FromFailure(CodeQueryFailures.QuestionRequired()));
 
         await Should.ThrowAsync<McpException>(() => _sut.QueryProjectCodeAsync("  "));
+    }
+
+    [Fact]
+    public async Task GetCodeSourceAsync_MapsSourceLocators()
+    {
+        var source = new CodeDocumentSource(
+            42,
+            "src/Widgets/Widget.cs",
+            new Uri("https://raw.githubusercontent.com/acme/widgets/main/src/Widgets/Widget.cs"));
+        _codeDocumentSourceService.GetAsync(42, Arg.Any<CancellationToken>())
+            .Returns(Result<CodeDocumentSource>.FromSuccess(source));
+
+        var result = await _sut.GetCodeSourceAsync(42);
+
+        result.DocumentId.ShouldBe(42);
+        result.SourceFile.ShouldBe("src/Widgets/Widget.cs");
+        result.GitRawUrl.ShouldBe(source.GitRawUrl);
+    }
+
+    [Fact]
+    public async Task GetCodeSourceAsync_FailureResult_ThrowsMcpException()
+    {
+        _codeDocumentSourceService.GetAsync(42, Arg.Any<CancellationToken>())
+            .Returns(Result<CodeDocumentSource>.FromFailure(CodeQueryFailures.CodeDocumentNotFound(42)));
+
+        await Should.ThrowAsync<McpException>(() => _sut.GetCodeSourceAsync(42));
+    }
+
+    [Fact]
+    public void GetCodeSourceAsync_DescribesQueryProjectCodeWorkflowForToolDiscovery()
+    {
+        var method = typeof(CodeQueryTools).GetMethod(nameof(CodeQueryTools.GetCodeSourceAsync));
+
+        method.ShouldNotBeNull();
+        method.GetCustomAttribute<McpServerToolAttribute>()!.Name.ShouldBe("get_code_source");
+        method.GetCustomAttribute<DescriptionAttribute>()!.Description.ShouldContain("query_project_code");
+        method.GetCustomAttribute<DescriptionAttribute>()!.Description.ShouldContain("matches[].id");
     }
 
     [Fact]

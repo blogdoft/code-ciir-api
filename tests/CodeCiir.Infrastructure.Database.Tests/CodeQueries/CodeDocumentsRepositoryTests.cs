@@ -201,6 +201,59 @@ public sealed class CodeDocumentsRepositoryTests(PostgresFixture fixture)
         result.GitRawUrl.ShouldBe(new Uri("https://raw.githubusercontent.com/acme/widgets/main/src/Widgets/Widget.cs"));
     }
 
+    [Fact]
+    public async Task GetSourceAsync_ReturnsPathAndCalculatedRawUrl()
+    {
+        var projectId = await InsertProjectAsync(gitRawUrl: "https://raw.githubusercontent.com/acme/widgets/main/");
+        var documentId = await InsertDocumentAsync(projectId, "widget", [1f, 0f, 0f], sourcePath: "src/Widgets/Widget.cs");
+
+        var result = await _sut.GetSourceAsync(documentId);
+
+        result.ShouldNotBeNull();
+        result.DocumentId.ShouldBe(documentId);
+        result.SourceFile.ShouldBe("src/Widgets/Widget.cs");
+        result.GitRawUrl.ShouldBe(new Uri("https://raw.githubusercontent.com/acme/widgets/main/src/Widgets/Widget.cs"));
+    }
+
+    [Theory]
+    [InlineData("https://raw.githubusercontent.com/acme/widgets/main", "src/Widgets/Widget.cs")]
+    [InlineData("https://raw.githubusercontent.com/acme/widgets/main/", "/src/Widgets/Widget.cs")]
+    public async Task GetSourceAsync_RawUrlAndSourcePath_AreSeparatedByExactlyOneSlash(string gitRawUrl, string sourcePath)
+    {
+        var projectId = await InsertProjectAsync(gitRawUrl: gitRawUrl);
+        var documentId = await InsertDocumentAsync(projectId, "widget", [1f, 0f, 0f], sourcePath: sourcePath);
+
+        var result = await _sut.GetSourceAsync(documentId);
+
+        result.ShouldNotBeNull();
+        result.GitRawUrl.ShouldBe(new Uri("https://raw.githubusercontent.com/acme/widgets/main/src/Widgets/Widget.cs"));
+    }
+
+    [Fact]
+    public async Task GetSourceAsync_ReturnsNullForMissingDocumentAndPreservesUnavailableLocators()
+    {
+        var missing = await _sut.GetSourceAsync(987654321);
+        missing.ShouldBeNull();
+
+        var projectId = await InsertProjectAsync(gitRawUrl: null);
+        var documentId = await InsertDocumentAsync(projectId, "without-raw-url", [1f, 0f, 0f], sourcePath: "src/Widget.cs");
+
+        var result = await _sut.GetSourceAsync(documentId);
+
+        result.ShouldNotBeNull();
+        result.SourceFile.ShouldBe("src/Widget.cs");
+        result.GitRawUrl.ShouldBeNull();
+
+        var pathlessProjectId = await InsertProjectAsync(gitRawUrl: "https://raw.githubusercontent.com/acme/widgets/main");
+        var pathlessDocumentId = await InsertDocumentAsync(pathlessProjectId, "without-path", [1f, 0f, 0f], sourcePath: null);
+
+        var pathlessResult = await _sut.GetSourceAsync(pathlessDocumentId);
+
+        pathlessResult.ShouldNotBeNull();
+        pathlessResult.SourceFile.ShouldBeNull();
+        pathlessResult.GitRawUrl.ShouldBeNull();
+    }
+
     private async Task<long> InsertProjectAsync(string? gitUrl = null, string? gitRawUrl = null)
     {
         await using var connection = await fixture.DataSource.OpenConnectionAsync();

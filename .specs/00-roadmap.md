@@ -86,6 +86,7 @@ documentos, 4429 relações, grau de saída médio 8.53 (máximo 48).
 | 9 | [`10-reranking.md`](./10-reranking.md) | Reranking opcional (Ollama + OpenAI-compatível) em `code-queries`; `size`/`page` revertidos para `limit` (incompatíveis com reranking); reranking já ligado em produção | Fase 8 | **Concluído** |
 | 10 | [`11-validation-problem-details.md`](./11-validation-problem-details.md) | 400 de model binding (corpo malformado/campo com tipo errado/propriedade desconhecida) passa a incluir `errors` nomeando o campo e a razão, em vez de um `detail` genérico — afeta todos os endpoints | — | **Concluído** |
 | 11 | [`12-match-relations.md`](./12-match-relations.md) | `matches[].relations` — relações diretas (1 hop, ambas direções) de cada match, sempre completas, independente do truncamento do `graph` de 2 hops | Fase 4 | **Concluído** |
+| 12 | [`13-mcp-code-source.md`](./13-mcp-code-source.md) | Tool MCP para resolver o `id` de `query_project_code` em `source_file` (relativo à raiz) e `git_raw_url` (arquivo bruto) | Fase 6 | **Concluído** |
 
 Ordem de execução recomendada: **0 → 1 → 2 → 3 → 4** é o caminho crítico até satisfazer o
 pedido original (endpoint de code-queries com grafo). 5-7 podem ser paralelizados ou

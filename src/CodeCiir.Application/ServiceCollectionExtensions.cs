@@ -11,6 +11,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<IProjectsService, ProjectsService>();
         services.AddScoped<ICodeQueryService, CodeQueryService>();
+        services.AddScoped<ICodeDocumentSourceService, CodeDocumentSourceService>();
         services.AddScoped<IFeedbackService, FeedbackService>();
         return services;
     }

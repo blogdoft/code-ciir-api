@@ -9,6 +9,27 @@ namespace CodeCiir.Infrastructure.Database.CodeQueries;
 
 public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICodeDocumentsRepository
 {
+    public async Task<CodeDocumentSource?> GetSourceAsync(long documentId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            SELECT cd.id AS DocumentId
+                 , cd.source_path AS SourceFile
+                 , CASE
+                       WHEN p.git_raw_url IS NULL OR cd.source_path IS NULL THEN NULL
+                       ELSE RTRIM(p.git_raw_url, '/') || '/' || LTRIM(cd.source_path, '/')
+                   END AS GitRawUrl
+            FROM public.ciir_documents cd
+            INNER JOIN public.projects p ON p.id = cd.project_id
+            WHERE cd.id = @DocumentId
+            """;
+
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var command = new CommandDefinition(sql, new { DocumentId = documentId }, cancellationToken: cancellationToken);
+        var row = await connection.QuerySingleOrDefaultAsync<CodeDocumentSourceRow>(command);
+
+        return row?.ToSource();
+    }
+
     public async Task<IEnumerable<CodeQueryResult>> SearchAsync(
         IReadOnlyList<float> queryEmbedding,
         double? minSimilarity,
@@ -131,4 +152,12 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
             GitRawUrl: GitRawUrl is null ? null : new Uri(GitRawUrl, UriKind.Absolute));
     }
 #pragma warning restore SA1313
+
+    private sealed record CodeDocumentSourceRow(long DocumentId, string? SourceFile, string? GitRawUrl)
+    {
+        public CodeDocumentSource ToSource() => new(
+            DocumentId,
+            SourceFile,
+            GitRawUrl is null ? null : new Uri(GitRawUrl, UriKind.Absolute));
+    }
 }
