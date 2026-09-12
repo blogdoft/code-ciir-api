@@ -8,6 +8,9 @@ using CodeCiir.Reranking.Ollama;
 using CodeCiir.Reranking.OpenAI;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
+using Npgsql;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text.Json.Serialization;
@@ -115,6 +118,19 @@ try
 
     builder.Services.AddApplication();
     builder.Services.AddDatabaseInfrastructure();
+
+    // Export request, outgoing HTTP (Ollama/OpenAI) and PostgreSQL spans through the cluster's
+    // OTLP collector. Exporter options, including endpoint and protocol, come from the standard
+    // OTEL_* environment variables in code-ciir-config; the collector enriches and forwards them
+    // to Tempo (see the observability manifests).
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService(
+            builder.Configuration["OTEL_SERVICE_NAME"] ?? "code-ciir-api"))
+        .WithTracing(tracing => tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddNpgsql()
+            .AddOtlpExporter());
 
     builder.Services.AddEmbeddingAbstraction(builder.Configuration);
     builder.Services.AddOllamaEmbeddingProvider();

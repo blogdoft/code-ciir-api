@@ -9,6 +9,12 @@ metadata:
 data:
   ASPNETCORE_URLS: "http://+:8080"
   ASPNETCORE_ENVIRONMENT: "Development"
+  # Traces flow through the cluster collector, which enriches them with Kubernetes metadata and
+  # exports them to Tempo. The collector exposes OTLP/gRPC on port 4317.
+  OTEL_SERVICE_NAME: "code-ciir-api"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.observability.svc.cluster.local:4317"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+  OTEL_TRACES_EXPORTER: "otlp"
   # Same shared Ollama instance code-rag-api already uses for embeddings. Model/Dimensions are
   # set here (not per-project): ciir_documents.embedding has one fixed vector width for the
   # whole code3rag installation, so every code-queries question is embedded with this single
