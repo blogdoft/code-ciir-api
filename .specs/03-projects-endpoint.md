@@ -1,9 +1,14 @@
 # Fase 2 — `/api/v1/projects` adaptado a `code3rag`
 
-**Status: concluído, revisado.** `GET /api/v1/projects[?name=][&page=][&page_size=]` (paginado),
-`GET /api/v1/projects/{projectId}`, `POST /api/v1/projects`, `PUT /api/v1/projects/{projectId}`
-e `DELETE /api/v1/projects/{projectId}` estão todos implementados - CRUD completo, revertendo a
-decisão original de manter o endpoint somente leitura (ver "Reversão" abaixo).
+**Status: concluído, revisado.** `GET /api/v1/projects[?name=][&page=][&page_size=]` (paginado) e
+`GET /api/v1/projects/{projectId}` estão implementados. Somente leitura - `POST`/`PUT`/`DELETE`
+foram implementados (ver "Reversão" abaixo para o histórico daquela decisão) e depois **movidos
+para `code-ciir-indexer`**, que agora expõe seu próprio CRUD completo em `POST/PUT/DELETE
+/api/projects` (mesmo dono da tabela `projects`, mesma tabela `code3rag`). Essa segunda reversão
+elimina o risco de dois escritores independentes sem coordenação que a seção "Reversão" abaixo
+documentava como aceito conscientemente - `code-ciir-indexer` volta a ser o único escritor. Este
+serviço lê a mesma tabela sem modificá-la, exatamente como um projeto criado/gerenciado
+externamente sempre foi o modelo pretendido para `code-ciir-api`.
 
 **⚠️ Achado durante a implementação original, não previsto no plano**: `[ApiController]` reescreve
 um `NotFoundResult()` vazio em um corpo JSON de Problem Details automaticamente, a menos
@@ -12,7 +17,9 @@ que `ApiBehaviorOptions.SuppressMapClientErrors = true` seja configurado em `Pro
 violando o contrato ("404 sem corpo"). Corrigido adicionando essa configuração (que a
 Fase 1 tinha omitido por não ter nenhum 404 ainda), junto com
 `InvalidModelStateResponseFactory` para uniformizar 400 de model-binding malformado com o
-formato Problem Details das falhas de domínio.
+formato Problem Details das falhas de domínio. Esse mesmo achado foi replicado em
+`code-ciir-indexer` ao mover o CRUD para lá, já que seu `ProjectsController` também retorna
+`NotFoundResult()` vazio para os mesmos casos.
 
 ## Contexto
 
@@ -67,14 +74,8 @@ lock distribuído, ou uma flag de "gerenciado externamente" por projeto).
   200 traz um envelope `{items, page, page_size, total_count, total_pages}` (antes era um
   array simples — mudança de contrato em relação à versão read-only original).
 - `GET /api/v1/projects/{projectId}` — mantido.
-- `POST /api/v1/projects` — cria um projeto (`name`, `embedding_model`,
-  `embedding_dimensions` obrigatórios). 201 com `Location` apontando para
-  `GET /projects/{id}`; 409 se já existe projeto com o mesmo nome.
-- `PUT /api/v1/projects/{projectId}` — substitui todos os campos de um projeto existente
-  (replace completo, não patch parcial). 200 com o registro atualizado; 404 se o id não
-  existe; 409 se o novo nome já pertence a outro projeto.
-- `DELETE /api/v1/projects/{projectId}` — remove o projeto. 204 sem corpo; 404 se o id não
-  existe. Não remove `ciir_documents`/`ciir_relations` associados (ver riscos acima).
+- `POST`/`PUT`/`DELETE /api/v1/projects` — **removidos**. Use os equivalentes em
+  `code-ciir-indexer` (`POST/PUT/DELETE /api/projects`), que é quem possui a tabela.
 
 ## Mapeamento de campos (confirmado via introspecção ao vivo em `code3rag`)
 
@@ -94,44 +95,45 @@ importantes:
 
 `ProjectResponse` em `code-ciir-api`: `id`, `name`, `embedding_model`,
 `embedding_dimensions`, `created_at`, `updated_at` — sem `git_url`/`git_raw_url`. Usado
-tanto nas respostas de leitura quanto nas de `POST`/`PUT`.
+apenas nas respostas de leitura (`GET`).
 
 ## Validação (camada de aplicação, `ProjectsService`)
 
-- `name`: obrigatório, não branco, máx. 200 caracteres (`ProjectsService.MaxNameLength`).
-- `embedding_model`: obrigatório, não branco, máx. 200 caracteres
-  (`ProjectsService.MaxEmbeddingModelLength`).
-- `embedding_dimensions`: obrigatório, inteiro positivo.
-- Unicidade de `name`: checada via `IProjectsRepository.ExistsByNameAsync` antes de
-  `INSERT`/`UPDATE` (excluindo o próprio id no caso de `UPDATE`) — ver limitação de
-  race condition na seção "Reversão" acima.
+- `name` (filtro de busca): opcional, não pode ser vazio/branco quando informado, máx. 200
+  caracteres (`ProjectsService.MaxNameFilterLength`).
 - `page`: opcional, default 0, não pode ser negativo.
 - `page_size`: opcional, default 20, deve estar entre 1 e 100
   (`ProjectsService.DefaultPageSize`/`MaxPageSize`).
 
+Validação de `name`/`embedding_model`/`embedding_dimensions` para criação/atualização, e a
+checagem de unicidade de nome, agora vivem em `code-ciir-indexer`
+(`Ciir.Indexer.Application.UseCases.ProjectValidation`/`CreateProject`/`UpdateProject`).
+
 ## Erros
 
-Mantém o padrão RFC 7807: 400 para campos ausentes/inválidos (`name`, `embedding_model`,
-`embedding_dimensions`, `page`, `page_size`) ou `projectId` não-numérico/negativo (reutiliza
-`RouteId.TryParsePositive`, ver `02-bootstrap-solution.md`), 404 sem corpo para projeto
-inexistente (`GET`/`PUT`/`DELETE`), 409 para nome duplicado (`POST`/`PUT`), 500 para exceção
-não tratada (inclui a colisão de nome não capturada mencionada na seção "Reversão").
+Mantém o padrão RFC 7807: 400 para `name`/`page`/`page_size` inválidos ou `projectId`
+não-numérico/negativo (reutiliza `RouteId.TryParsePositive`, ver `02-bootstrap-solution.md`),
+404 sem corpo para projeto inexistente (`GET`), 500 para exceção não tratada.
 
 ## MCP
 
-`list_projects` mantido (mirror de `GET /projects`), agora com `page`/`page_size`
-opcionais espelhando a paginação da API REST; segue retornando uma lista simples (sem o
-envelope de paginação do REST). Não há ferramentas MCP para `create`/`update`/`delete` —
-fora do escopo desta revisão, que tratou apenas do endpoint HTTP.
+`list_projects` mantido (mirror de `GET /projects`), com `page`/`page_size` opcionais
+espelhando a paginação da API REST; segue retornando uma lista simples (sem o envelope de
+paginação do REST). Não há ferramentas MCP para `create`/`update`/`delete` - use a API REST
+de `code-ciir-indexer` para essas operações.
 
 ## Verificação de saída desta fase
 
-- Testes de integração (Testcontainers) cobrindo `SearchAsync` (paginado),
-  `ExistsByNameAsync`, `InsertAsync`, `UpdateAsync`, `DeleteAsync` além dos já existentes
-  `GetByIdAsync` — `ProjectsRepositoryTests`.
-- Testes de unidade de `ProjectsService` cobrindo validação de campos, conflito de nome e
-  paginação — `ProjectsServiceTests`.
-- Testes HTTP end-to-end (`IProjectsService` substituído via NSubstitute) cobrindo os cinco
-  verbos, incluindo os novos códigos 201/409 — `ProjectsEndpointTests`.
+- Testes de integração (Testcontainers) cobrindo `SearchAsync` (paginado) e `GetByIdAsync` —
+  `ProjectsRepositoryTests`. `ExistsByNameAsync`/`InsertAsync`/`UpdateAsync`/`DeleteAsync`
+  moveram para `Ciir.Indexer.Infrastructure.PostgreSql.Tests.ProjectStoreTests` em
+  `code-ciir-indexer`.
+- Testes de unidade de `ProjectsService` cobrindo validação do filtro e paginação —
+  `ProjectsServiceTests`. A cobertura de criação/atualização/exclusão moveu para
+  `Ciir.Indexer.Application.Tests.UseCases.{ListProjects,CreateProject,UpdateProject,DeleteProject}Tests`
+  em `code-ciir-indexer`.
+- Testes HTTP end-to-end (`IProjectsService` substituído via NSubstitute) cobrindo os dois
+  verbos de leitura — `ProjectsEndpointTests`. A cobertura HTTP dos verbos de escrita moveu
+  para `Ciir.Indexer.Api.Tests.Controllers.ProjectsControllerTests` em `code-ciir-indexer`.
 - Suíte completa (`dotnet test`) verde após a mudança, incluindo os testes de integração
-  reais contra Postgres via Testcontainers.
+  reais contra Postgres via Testcontainers, em ambos os repositórios.

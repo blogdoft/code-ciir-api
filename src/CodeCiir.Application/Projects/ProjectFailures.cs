@@ -27,32 +27,4 @@ public static class ProjectFailures
     public static Failure ProjectNotFound(long projectId) => new(
         "404-project-not-found",
         $"No project exists with id {projectId}.");
-
-    public static Failure NameRequired() => new(
-        "400-name-required",
-        "The 'name' field is required and must not be empty or blank.");
-
-    public static Failure NameTooLong(int maxLength) => new(
-        "400-name-too-long",
-        $"The 'name' field must not exceed {maxLength} characters.");
-
-    public static Failure NameConflict(string name) => new(
-        "409-name-conflict",
-        $"A project named '{name}' already exists.");
-
-    public static Failure EmbeddingModelRequired() => new(
-        "400-embedding-model-required",
-        "The 'embedding_model' field is required and must not be empty or blank.");
-
-    public static Failure EmbeddingModelTooLong(int maxLength) => new(
-        "400-embedding-model-too-long",
-        $"The 'embedding_model' field must not exceed {maxLength} characters.");
-
-    public static Failure EmbeddingDimensionsRequired() => new(
-        "400-embedding-dimensions-required",
-        "The 'embedding_dimensions' field is required.");
-
-    public static Failure EmbeddingDimensionsInvalid() => new(
-        "400-embedding-dimensions-invalid",
-        "The 'embedding_dimensions' field must be a positive integer.");
 }

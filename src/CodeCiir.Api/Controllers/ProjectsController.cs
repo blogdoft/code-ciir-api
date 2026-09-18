@@ -7,10 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace CodeCiir.Api.Controllers;
 
 /// <summary>
-/// Full CRUD over projects stored in code3rag. Projects here are normally created/managed by
-/// code-ciir-indexer as part of its own indexing flow, but this API also exposes its own
-/// create/update/delete so it can be managed directly - see .specs/03-projects-endpoint.md for
-/// the tradeoffs of two independent writers on the same table.
+/// Read-only access to projects stored in code3rag. code-ciir-indexer owns this table and is the
+/// only writer - see .specs/03-projects-endpoint.md for why the create/update/delete endpoints
+/// this controller used to expose were removed in favor of code-ciir-indexer's own CRUD API.
 /// </summary>
 [ApiController]
 [ApiExplorerSettings(GroupName = "Projects")]
@@ -103,123 +102,6 @@ public sealed class ProjectsController(IProjectsService projectsService) : Contr
 
         return result.Map(
             onSuccess: project => (IActionResult)Ok(ToResponse(project)),
-            onFailure: failure => failure.ToActionResult(HttpContext));
-    }
-
-    /// <summary>Create a project</summary>
-    /// <remarks>Creates a new project in code3rag with the given name, embedding model and embedding dimensions.</remarks>
-    /// <param name="request">The name, embedding model and embedding dimensions of the project to create.</param>
-    /// <param name="cancellationToken">Propagates request abort/timeout to the async pipeline.</param>
-    /// <response code="201">The project was created. The response body echoes the persisted record, including its generated id and timestamps.</response>
-    /// <response code="400">The request body is missing or malformed, or name/embedding_model/embedding_dimensions is missing or invalid.</response>
-    /// <response code="409">A project with the given name already exists.</response>
-    /// <response code="500">
-    /// An unhandled exception occurred while processing the request. This is the only condition
-    /// under which this endpoint returns 500.
-    /// </response>
-    [HttpPost]
-    [ProducesResponseType<ProjectResponse>(StatusCodes.Status201Created, "application/json")]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
-    [ProducesResponseType<ServerErrorProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
-    public async Task<IActionResult> CreateAsync([FromBody] ProjectCreateRequest request, CancellationToken cancellationToken)
-    {
-        var result = await projectsService.CreateAsync(
-            request.Name,
-            request.EmbeddingModel,
-            request.EmbeddingDimensions,
-            request.GitUrl,
-            request.GitRawUrl,
-            cancellationToken);
-
-        return result.Map(
-            onSuccess: project => (IActionResult)CreatedAtRoute(GetProjectRouteName, new { projectId = project.Id }, ToResponse(project)),
-            onFailure: failure => failure.ToActionResult(HttpContext));
-    }
-
-    /// <summary>Replace a project</summary>
-    /// <remarks>Replaces every field of an existing project. This is a full replace (PUT), not a partial patch - every field must be supplied.</remarks>
-    /// <param name="projectId">
-    /// Identifier of the project to update, corresponding to the id field returned by GET
-    /// /projects. Must be a positive 64-bit integer; any other format results in a 400 response.
-    /// </param>
-    /// <param name="request">The project's new name, embedding model and embedding dimensions.</param>
-    /// <param name="cancellationToken">Propagates request abort/timeout to the async pipeline.</param>
-    /// <response code="200">The project was updated. The response body echoes the updated record.</response>
-    /// <response code="400">
-    /// Either the projectId path parameter is not a valid positive integer, the request body is
-    /// missing or malformed, or name/embedding_model/embedding_dimensions is missing or invalid.
-    /// </response>
-    /// <response code="404">No project exists with the given projectId.</response>
-    /// <response code="409">Another project with the given name already exists.</response>
-    /// <response code="500">
-    /// An unhandled exception occurred while processing the request. This is the only condition
-    /// under which this endpoint returns 500.
-    /// </response>
-    [HttpPut("{projectId}")]
-    [ProducesResponseType<ProjectResponse>(StatusCodes.Status200OK, "application/json")]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
-    [ProducesResponseType<ServerErrorProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
-    public async Task<IActionResult> UpdateAsync(
-        string projectId,
-        [FromBody] ProjectUpdateRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (!RouteId.TryParsePositive(projectId, "projectId", HttpContext.Request.Path, out var id, out var problem))
-        {
-            return problem!;
-        }
-
-        var result = await projectsService.UpdateAsync(
-            id,
-            request.Name,
-            request.EmbeddingModel,
-            request.EmbeddingDimensions,
-            request.GitUrl is null ? null : new Uri(request.GitUrl),
-            request.GitRawUrl is null ? null : new Uri(request.GitRawUrl),
-            cancellationToken);
-
-        return result.Map(
-            onSuccess: project => (IActionResult)Ok(ToResponse(project)),
-            onFailure: failure => failure.ToActionResult(HttpContext));
-    }
-
-    /// <summary>Delete a project</summary>
-    /// <remarks>
-    /// Permanently deletes a project from code3rag. This does not delete the project's indexed
-    /// code documents/relations - deleting those, if desired, remains code-ciir-indexer's
-    /// responsibility.
-    /// </remarks>
-    /// <param name="projectId">
-    /// Identifier of the project to delete, corresponding to the id field returned by GET
-    /// /projects. Must be a positive 64-bit integer; any other format results in a 400 response.
-    /// </param>
-    /// <param name="cancellationToken">Propagates request abort/timeout to the async pipeline.</param>
-    /// <response code="204">The project was deleted. The response has no body.</response>
-    /// <response code="400">The projectId path parameter is not a valid positive integer.</response>
-    /// <response code="404">No project exists with the given projectId. The response has no body.</response>
-    /// <response code="500">
-    /// An unhandled exception occurred while processing the request. This is the only condition
-    /// under which this endpoint returns 500.
-    /// </response>
-    [HttpDelete("{projectId}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ServerErrorProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
-    public async Task<IActionResult> DeleteAsync(string projectId, CancellationToken cancellationToken)
-    {
-        if (!RouteId.TryParsePositive(projectId, "projectId", HttpContext.Request.Path, out var id, out var problem))
-        {
-            return problem!;
-        }
-
-        var result = await projectsService.DeleteAsync(id, cancellationToken);
-
-        return result.Map(
-            onSuccess: _ => (IActionResult)NoContent(),
             onFailure: failure => failure.ToActionResult(HttpContext));
     }
 
