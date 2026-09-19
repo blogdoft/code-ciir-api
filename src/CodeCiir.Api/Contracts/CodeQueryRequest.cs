@@ -12,8 +12,8 @@ namespace CodeCiir.Api.Contracts;
 /// empty or blank.
 /// </param>
 /// <param name="ProjectId">
-/// Optional filter narrowing results to a single project, corresponding to the <c>id</c> field
-/// returned by <c>GET /projects</c>. Omit to search across every project. When provided, must be
+/// Optional filter narrowing results to a single project, corresponding to a project id returned
+/// by the list_projects MCP tool. Omit to search across every project. When provided, must be
 /// a positive 64-bit integer and must correspond to an existing project (404 otherwise).
 /// </param>
 /// <param name="MinSimilarity">Optional minimum cosine similarity (0.0-1.0) a match must have to be included.</param>

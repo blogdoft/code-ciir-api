@@ -9,6 +9,13 @@ metadata:
 data:
   ASPNETCORE_URLS: "http://+:8080"
   ASPNETCORE_ENVIRONMENT: "Development"
+  # Swagger/OpenAPI is always mapped regardless of environment (Program.cs), so this is the only
+  # thing telling the app it's reachable through the blogdoft.home.arpa/code-brain ingress prefix
+  # (which the app otherwise has no way to see - Traefik strips it before forwarding, see
+  # .eng/k8s/middleware.yaml) - used to build the OpenAPI document's "servers" entry so Swagger
+  # UI's "Try it out" requests land on a real, resolvable URL. Left unset locally, where the
+  # current request's own scheme/host stand in for it instead.
+  PublicBaseUrl: "https://blogdoft.home.arpa/code-brain"
   # Traces flow through the cluster collector, which enriches them with Kubernetes metadata and
   # exports them to Tempo. The collector exposes OTLP/gRPC on port 4317.
   OTEL_SERVICE_NAME: "code-ciir-api"

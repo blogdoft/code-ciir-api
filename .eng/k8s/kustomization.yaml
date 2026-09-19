@@ -10,6 +10,7 @@ resources:
   - service.yaml
   - configmap.yaml
   - ingress.yaml
+  - middleware.yaml
   - serverstransport.yaml
 
 images:

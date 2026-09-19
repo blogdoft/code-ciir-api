@@ -44,7 +44,7 @@ public sealed class CodeQueriesEndpointTests(CustomWebApplicationFactory factory
 
         using var client = CreateClient(codeQueryService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "where is Baz?", project_id = 1 });
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -74,7 +74,7 @@ public sealed class CodeQueriesEndpointTests(CustomWebApplicationFactory factory
 
         using var client = CreateClient(codeQueryService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "where is Baz?" });
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -92,7 +92,7 @@ public sealed class CodeQueriesEndpointTests(CustomWebApplicationFactory factory
 
         using var client = CreateClient(codeQueryService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "  " });
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -109,7 +109,7 @@ public sealed class CodeQueriesEndpointTests(CustomWebApplicationFactory factory
 
         using var client = CreateClient(codeQueryService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "question", project_id = 0 });
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -127,7 +127,7 @@ public sealed class CodeQueriesEndpointTests(CustomWebApplicationFactory factory
 
         using var client = CreateClient(codeQueryService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "question", project_id = 999 });
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);

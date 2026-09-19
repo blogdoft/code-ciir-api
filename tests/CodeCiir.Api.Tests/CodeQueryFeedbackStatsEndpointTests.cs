@@ -29,7 +29,7 @@ public sealed class CodeQueryFeedbackStatsEndpointTests(CustomWebApplicationFact
 
         using var client = CreateClient(feedbackService);
         using var response = await client.GetAsync(
-            new Uri("/api/v1/code-queries/feedback/stats?start_date=2026-08-04T00:00:00Z&end_date=2026-09-03T00:00:00Z&project_id=1", UriKind.Relative));
+            new Uri("/api/code-queries/feedback/stats?start_date=2026-08-04T00:00:00Z&end_date=2026-09-03T00:00:00Z&project_id=1", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -49,7 +49,7 @@ public sealed class CodeQueryFeedbackStatsEndpointTests(CustomWebApplicationFact
             .Returns(Result<FeedbackStatsResult>.FromSuccess(stats));
 
         using var client = CreateClient(feedbackService);
-        using var response = await client.GetAsync(new Uri("/api/v1/code-queries/feedback/stats", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri("/api/code-queries/feedback/stats", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
@@ -63,7 +63,7 @@ public sealed class CodeQueryFeedbackStatsEndpointTests(CustomWebApplicationFact
 
         using var client = CreateClient(feedbackService);
         using var response = await client.GetAsync(
-            new Uri("/api/v1/code-queries/feedback/stats?start_date=2026-06-01T00:00:00Z&end_date=2026-01-01T00:00:00Z", UriKind.Relative));
+            new Uri("/api/code-queries/feedback/stats?start_date=2026-06-01T00:00:00Z&end_date=2026-01-01T00:00:00Z", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
@@ -78,7 +78,7 @@ public sealed class CodeQueryFeedbackStatsEndpointTests(CustomWebApplicationFact
 
         using var client = CreateClient(feedbackService);
         using var response = await client.GetAsync(
-            new Uri("/api/v1/code-queries/feedback/stats?start_date=2020-01-01T00:00:00Z&end_date=2022-01-01T00:00:00Z", UriKind.Relative));
+            new Uri("/api/code-queries/feedback/stats?start_date=2020-01-01T00:00:00Z&end_date=2022-01-01T00:00:00Z", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
@@ -93,7 +93,7 @@ public sealed class CodeQueryFeedbackStatsEndpointTests(CustomWebApplicationFact
                 CodeCiir.Application.Projects.ProjectFailures.ProjectNotFound(999)));
 
         using var client = CreateClient(feedbackService);
-        using var response = await client.GetAsync(new Uri("/api/v1/code-queries/feedback/stats?project_id=999", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri("/api/code-queries/feedback/stats?project_id=999", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         var content = await response.Content.ReadAsByteArrayAsync();

@@ -13,7 +13,7 @@ namespace CodeCiir.Api.Controllers;
 /// <summary>Reporting operations over previously submitted code-query feedback.</summary>
 [ApiController]
 [ApiExplorerSettings(GroupName = "Code Query")]
-[Route("api/v1/code-queries/feedback")]
+[Route("api/code-queries/feedback")]
 public sealed class FeedbackController(IFeedbackService feedbackService) : ControllerBase
 {
     /// <summary>Get feedback effectiveness statistics, grouped by week and by project</summary>
@@ -44,8 +44,8 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     /// </param>
     /// <param name="projectId">
     /// Restrict every week's project list to a single project, instead of all registered
-    /// projects. Must correspond to the id field returned by GET /projects; a projectId that does
-    /// not match any project results in a 404.
+    /// projects. Must correspond to a project id returned by the list_projects MCP tool; a
+    /// projectId that does not match any project results in a 404.
     /// </param>
     /// <param name="cancellationToken">Propagates request abort/timeout to the async pipeline.</param>
     /// <response code="200">
@@ -114,8 +114,8 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     /// </param>
     /// <param name="projectId">
     /// Restrict the export to a single project, instead of all registered projects. Must
-    /// correspond to the id field returned by GET /projects; a projectId that does not match any
-    /// project results in a 404.
+    /// correspond to a project id returned by the list_projects MCP tool; a projectId that does
+    /// not match any project results in a 404.
     /// </param>
     /// <param name="timezone">
     /// IANA timezone name (e.g. "America/Sao_Paulo") used to render the created_at column of the

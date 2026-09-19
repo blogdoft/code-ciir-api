@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Mvc.Formatters;
 using Npgsql;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Scalar.AspNetCore;
 using Serilog;
 using System.Text.Json.Serialization;
 
@@ -114,7 +113,15 @@ try
         var xmlDocPath = Path.Combine(AppContext.BaseDirectory, "CodeCiir.Api.xml");
         options.IncludeXmlComments(xmlDocPath);
         options.DocumentFilter<CodeCiir.Api.OpenApi.ControllerTagDescriptionsDocumentFilter>(xmlDocPath);
+
+        // Resolved via the app's IServiceProvider (Swashbuckle instantiates document filters
+        // through ActivatorUtilities), so its IConfiguration/IHttpContextAccessor constructor
+        // parameters are injected automatically - see PublicServerDocumentFilter for why this
+        // exists (blogdoft.home.arpa/code-brain ingress prefix).
+        options.DocumentFilter<CodeCiir.Api.OpenApi.PublicServerDocumentFilter>();
     });
+
+    builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddApplication();
     builder.Services.AddDatabaseInfrastructure();
@@ -157,11 +164,18 @@ try
     // throwing - only an unknown, non-empty provider name (a config typo) crashes startup here.
     app.Services.GetRequiredService<IReranker>();
 
-    if (app.Environment.IsDevelopment())
+    // Always mapped (not gated to Development) so Swagger is reachable in this cluster too - both
+    // routes live under "api/code-queries" since that's the only prefix the blogdoft.home.arpa/
+    // code-brain ingress forwards to this service (see .eng/k8s/ingress.yaml). The swagger.json
+    // URL passed to SwaggerEndpoint is relative ("v1/swagger.json"), so the browser resolves it
+    // against whatever prefix it is actually browsing under (locally or through the ingress)
+    // without the app needing to know about that prefix itself.
+    app.UseSwagger(options => options.RouteTemplate = "api/code-queries/swagger/{documentName}/swagger.json");
+    app.UseSwaggerUI(options =>
     {
-        app.UseSwagger();
-        app.MapScalarApiReference(options => options.WithOpenApiRoutePattern("/swagger/v1/swagger.json"));
-    }
+        options.SwaggerEndpoint("v1/swagger.json", "Code CIIR API v1");
+        options.RoutePrefix = "api/code-queries/swagger";
+    });
 
     // Keep probe traffic out of the request-logging middleware. This is intentionally a
     // terminal branch rather than an MVC endpoint so Kubernetes' frequent checks never emit

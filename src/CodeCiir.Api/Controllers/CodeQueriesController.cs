@@ -14,7 +14,7 @@ namespace CodeCiir.Api.Controllers;
 #pragma warning disable S6960
 [ApiController]
 [ApiExplorerSettings(GroupName = "Code Query")]
-[Route("api/v1/projects/{projectId}/code-queries")]
+[Route("api/code-queries")]
 public sealed class CodeQueriesController(ICodeQueryService codeQueryService, IFeedbackService feedbackService) : ControllerBase
 {
     /// <summary>Query indexed code using natural language</summary>
@@ -67,7 +67,6 @@ public sealed class CodeQueriesController(ICodeQueryService codeQueryService, IF
     /// under which this endpoint returns 500.
     /// </response>
     [HttpPost]
-    [Route("~/api/v1/code-queries")]
     [ProducesResponseType<Contracts.CodeQueryResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -104,14 +103,10 @@ public sealed class CodeQueriesController(ICodeQueryService codeQueryService, IF
     /// against the database out of band. Accordingly, the 201 response below has no
     /// <c>Location</c> header.
     /// </remarks>
-    /// <param name="projectId">
-    /// Identifier of the project the original code-queries call was scoped to, corresponding to
-    /// the <c>id</c> field returned by <c>GET /projects</c>. Must be a positive 64-bit integer;
-    /// any other format (e.g. a GUID or non-numeric string) results in a 400 response.
-    /// </param>
     /// <param name="request">
-    /// The original question, whether it was useful, the similarity values it returned, and the
-    /// identity of the caller submitting the feedback.
+    /// The identifier of the project the original code-queries call was scoped to, the original
+    /// question, whether it was useful, the similarity values it returned, and the identity of
+    /// the caller submitting the feedback.
     /// </param>
     /// <param name="cancellationToken">Propagates request abort/timeout to the async pipeline.</param>
     /// <response code="201">
@@ -119,12 +114,12 @@ public sealed class CodeQueriesController(ICodeQueryService codeQueryService, IF
     /// generated id and created_at.
     /// </response>
     /// <response code="400">
-    /// Either the projectId path parameter is not a valid positive integer, the request body is
-    /// missing or malformed, question/useful/similarities/user is missing or invalid (empty,
-    /// blank, exceeds its maximum length/count), or reason exceeds its maximum length.
+    /// The request body is missing or malformed, project_id is missing or not a positive integer,
+    /// question/useful/similarities/user is missing or invalid (empty, blank, exceeds its maximum
+    /// length/count), or reason exceeds its maximum length.
     /// </response>
     /// <response code="404">
-    /// No project exists with the given projectId. This is the only condition under which this
+    /// No project exists with the given project_id. This is the only condition under which this
     /// endpoint returns 404; the response has no body.
     /// </response>
     /// <response code="500">
@@ -137,17 +132,16 @@ public sealed class CodeQueriesController(ICodeQueryService codeQueryService, IF
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ServerErrorProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
     public async Task<IActionResult> SubmitFeedbackAsync(
-        string projectId,
         [FromBody] CodeQueryFeedbackRequest request,
         CancellationToken cancellationToken)
     {
-        if (!RouteId.TryParsePositive(projectId, "projectId", HttpContext.Request.Path, out var id, out var problem))
+        if (request.ProjectId is not > 0)
         {
-            return problem!;
+            return FeedbackFailures.ProjectIdRequired().ToActionResult(HttpContext);
         }
 
         var result = await feedbackService.SubmitAsync(
-            id,
+            request.ProjectId.Value,
             request.Question,
             request.Useful,
             request.Similarities,

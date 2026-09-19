@@ -21,7 +21,7 @@ public sealed class InvalidRequestBodyTests(CustomWebApplicationFactory factory)
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "question", project_id = "not-a-number" });
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -36,7 +36,7 @@ public sealed class InvalidRequestBodyTests(CustomWebApplicationFactory factory)
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "question", not_a_real_field = 123 });
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -51,7 +51,7 @@ public sealed class InvalidRequestBodyTests(CustomWebApplicationFactory factory)
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "question", qualified_name = new { value = "Foo" } });
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -66,7 +66,7 @@ public sealed class InvalidRequestBodyTests(CustomWebApplicationFactory factory)
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/code-queries", UriKind.Relative),
+            new Uri("/api/code-queries", UriKind.Relative),
             new { question = "question", project_id = "not-a-number" });
 
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
@@ -74,6 +74,6 @@ public sealed class InvalidRequestBodyTests(CustomWebApplicationFactory factory)
         body.GetProperty("type").GetString().ShouldBe("https://httpstatuses.io/400");
         body.GetProperty("title").GetString().ShouldBe("Bad Request");
         body.GetProperty("status").GetInt32().ShouldBe(400);
-        body.GetProperty("instance").GetString().ShouldBe("/api/v1/code-queries");
+        body.GetProperty("instance").GetString().ShouldBe("/api/code-queries");
     }
 }

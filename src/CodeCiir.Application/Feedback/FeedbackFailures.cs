@@ -4,6 +4,9 @@ namespace CodeCiir.Application.Feedback;
 
 public static class FeedbackFailures
 {
+    public static Failure ProjectIdRequired() => new(
+        "400-project-id-required", "The 'project_id' field is required and must be a positive integer.");
+
     public static Failure QuestionRequired() => new(
         "400-question-required", "The 'question' field is required and must not be empty or blank.");
 

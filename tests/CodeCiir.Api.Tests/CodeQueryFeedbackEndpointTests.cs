@@ -24,8 +24,8 @@ public sealed class CodeQueryFeedbackEndpointTests(CustomWebApplicationFactory f
 
         using var client = CreateClient(feedbackService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/projects/1/code-queries/feedback", UriKind.Relative),
-            new { question = "question", useful = true, similarities = new[] { 0.8 }, user = "claude code" });
+            new Uri("/api/code-queries/feedback", UriKind.Relative),
+            new { project_id = 1, question = "question", useful = true, similarities = new[] { 0.8 }, user = "claude code" });
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         response.Headers.Location.ShouldBeNull();
@@ -42,8 +42,21 @@ public sealed class CodeQueryFeedbackEndpointTests(CustomWebApplicationFactory f
 
         using var client = CreateClient(feedbackService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/projects/1/code-queries/feedback", UriKind.Relative),
-            new { question = "question", useful = true, similarities = new[] { 0.8 } });
+            new Uri("/api/code-queries/feedback", UriKind.Relative),
+            new { project_id = 1, question = "question", useful = true, similarities = new[] { 0.8 } });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SubmitFeedbackAsync_MissingProjectId_ReturnsBadRequest()
+    {
+        var feedbackService = Substitute.For<IFeedbackService>();
+
+        using var client = CreateClient(feedbackService);
+        using var response = await client.PostAsJsonAsync(
+            new Uri("/api/code-queries/feedback", UriKind.Relative),
+            new { question = "question", useful = true, similarities = new[] { 0.8 }, user = "claude code" });
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -58,8 +71,8 @@ public sealed class CodeQueryFeedbackEndpointTests(CustomWebApplicationFactory f
 
         using var client = CreateClient(feedbackService);
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/projects/999/code-queries/feedback", UriKind.Relative),
-            new { question = "question", useful = true, similarities = new[] { 0.8 }, user = "claude code" });
+            new Uri("/api/code-queries/feedback", UriKind.Relative),
+            new { project_id = 999, question = "question", useful = true, similarities = new[] { 0.8 }, user = "claude code" });
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
