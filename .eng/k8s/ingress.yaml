@@ -2,10 +2,10 @@
 # convention used by other services in this cluster: this service is routed via a shared host
 # (blogdoft.home.arpa) under the shared /code-brain path instead. /code-brain is stripped by the
 # code-ciir-api-strip-code-brain Middleware (middleware.yaml) before forwarding, since the
-# backend's controllers are rooted at "api/code-queries" (see CodeQueriesController/
-# FeedbackController) with no "code-brain" segment. Format for router.middlewares:
-# <namespace>-<middleware-name>@kubernetescrd (this Ingress is deployed into code-rag - see
-# service.yaml's serverstransport annotation).
+# backend's controllers/MCP endpoint are rooted at "api/code-queries"/"mcp" (see
+# CodeQueriesController/FeedbackController/Program.cs's MapMcp) with no "code-brain" segment.
+# Format for router.middlewares: <namespace>-<middleware-name>@kubernetescrd (this Ingress is
+# deployed into code-rag - see service.yaml's serverstransport annotation).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -21,6 +21,18 @@ spec:
       http:
         paths:
           - path: /code-brain/api/code-queries
+            pathType: Prefix
+            backend:
+              service:
+                name: code-ciir-api
+                port:
+                  name: http
+          # MCP clients (e.g. Claude Code) reach the same tools as the REST API above over
+          # Streamable HTTP. Deliberately anonymous even with Keycloak enabled (Program.cs's
+          # MapMcp(...).AllowAnonymous() - .specs/14-keycloak-auth.md) - MCP clients here have no
+          # way to attach a Bearer token, so this path is reachable by anyone who can reach
+          # blogdoft.home.arpa, same exposure the REST path already has while Keycloak is off.
+          - path: /code-brain/mcp
             pathType: Prefix
             backend:
               service:

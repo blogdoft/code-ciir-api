@@ -1,3 +1,4 @@
+using CodeCiir.Api.Authentication;
 using CodeCiir.Api.Filters;
 using CodeCiir.Application;
 using CodeCiir.Embeddings.Abstraction;
@@ -30,6 +31,16 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
+
+    // --- Keycloak authentication (.specs/14-keycloak-auth.md): opt-in. Null unless
+    // "Keycloak:Enabled" is true, in which case no authentication is registered and every
+    // endpoint stays open. When enabled, REST controllers require a token by default (fallback
+    // policy) - "/mcp" is explicitly exempted further down, regardless of this setting. ---
+    var keycloakOptions = KeycloakOptions.FromConfiguration(builder.Configuration);
+    if (keycloakOptions is not null)
+    {
+        builder.Services.AddKeycloakAuthentication(keycloakOptions);
+    }
 
     builder.Services
         .AddControllers(options =>
@@ -119,6 +130,14 @@ try
         // parameters are injected automatically - see PublicServerDocumentFilter for why this
         // exists (blogdoft.home.arpa/code-brain ingress prefix).
         options.DocumentFilter<CodeCiir.Api.OpenApi.PublicServerDocumentFilter>();
+
+        // Only when Keycloak is on: documents how to authenticate against the REST controllers
+        // this Swagger document actually describes ("/mcp" is a separate, always-anonymous
+        // endpoint - see the MapMcp wiring below - and isn't part of this document).
+        if (keycloakOptions is not null)
+        {
+            options.DocumentFilter<CodeCiir.Api.OpenApi.KeycloakSecurityDocumentFilter>();
+        }
     });
 
     builder.Services.AddHttpContextAccessor();
@@ -175,6 +194,17 @@ try
     {
         options.SwaggerEndpoint("v1/swagger.json", "Code CIIR API v1");
         options.RoutePrefix = "api/code-queries/swagger";
+
+        // "Authorize" redirects to the Keycloak login (authorization code + PKCE, public client)
+        // when a client id is configured (the API and Swagger UI share one Keycloak client); the
+        // redirect_uri, oauth2-redirect.html under this same prefix, is computed by the browser
+        // from the current URL.
+        if (keycloakOptions is { ClientId.Length: > 0 })
+        {
+            options.OAuthClientId(keycloakOptions.ClientId);
+            options.OAuthUsePkce();
+            options.OAuthScopes(CodeCiir.Api.OpenApi.KeycloakSecurityDocumentFilter.OpenIdScope);
+        }
     });
 
     // Keep probe traffic out of the request-logging middleware. This is intentionally a
@@ -188,9 +218,20 @@ try
 
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
+
+    if (keycloakOptions is not null)
+    {
+        app.UseAuthentication();
+    }
+
     app.UseAuthorization();
     app.MapControllers();
-    app.MapMcp("/mcp");
+
+    // MCP clients in this deployment have no way to obtain/attach a Keycloak bearer token, so
+    // "/mcp" is deliberately exempted from the FallbackPolicy that otherwise protects every
+    // endpoint once Keycloak is enabled - a standing exception, not a gap: AllowAnonymous() is a
+    // no-op (nothing requires auth) when Keycloak is disabled.
+    app.MapMcp("/mcp").AllowAnonymous();
 
     await app.RunAsync();
 }
