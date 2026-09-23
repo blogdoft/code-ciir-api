@@ -5,7 +5,7 @@
 # backend's controllers/MCP endpoint are rooted at "api/code-queries"/"mcp" (see
 # CodeQueriesController/FeedbackController/Program.cs's MapMcp) with no "code-brain" segment.
 # Format for router.middlewares: <namespace>-<middleware-name>@kubernetescrd (this Ingress is
-# deployed into code-rag - see service.yaml's serverstransport annotation).
+# deployed into code-brain - see service.yaml's serverstransport annotation).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -13,7 +13,7 @@ metadata:
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: code-rag-code-ciir-api-strip-code-brain@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: code-brain-code-ciir-api-strip-code-brain@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
