@@ -42,7 +42,7 @@ public sealed class CodeQueryService(
 
     public async Task<Result<CodeQueryResponse>> QueryAsync(
         string? question,
-        long? projectId = null,
+        Guid? projectId = null,
         double? minSimilarity = null,
         string? kind = null,
         QualifiedNameFilterOperator? qualifiedNameOperator = null,
@@ -58,11 +58,6 @@ public sealed class CodeQueryService(
         if (question.Length > MaxQuestionLength)
         {
             return CodeQueryFailures.QuestionTooLong(MaxQuestionLength);
-        }
-
-        if (projectId is <= 0)
-        {
-            return CodeQueryFailures.ProjectIdInvalid();
         }
 
         if (minSimilarity is < 0.0 or > 1.0)
@@ -86,13 +81,16 @@ public sealed class CodeQueryService(
             return qualifiedNameValidationFailure;
         }
 
+        long? internalProjectId = null;
         if (projectId is not null)
         {
-            var project = await projectsRepository.GetByIdAsync(projectId.Value, cancellationToken);
+            var project = await projectsRepository.GetByPublicIdAsync(projectId.Value, cancellationToken);
             if (project is null)
             {
                 return ProjectFailures.ProjectNotFound(projectId.Value);
             }
+
+            internalProjectId = project.Id;
         }
 
         // The question is always embedded with the single app-configured model/dimensions
@@ -112,7 +110,7 @@ public sealed class CodeQueryService(
         var candidates = (await codeDocumentsRepository.SearchAsync(
             questionEmbedding.Values,
             minSimilarity,
-            projectId,
+            internalProjectId,
             kind,
             qualifiedNameOperator,
             qualifiedNameValue,
@@ -145,14 +143,14 @@ public sealed class CodeQueryService(
         // for - matches-only (empty graph, no per-match relations) is the defensible behavior
         // here. See .specs/09-code-queries-filters.md.
         var rootIds = results.Select(r => r.Id).ToList();
-        var graph = rootIds.Count > 0 && projectId is not null
-            ? await relationshipGraphRepository.GetGraphAsync(projectId.Value, rootIds, MaxGraphDepth, MaxGraphNodes, cancellationToken)
+        var graph = rootIds.Count > 0 && internalProjectId is not null
+            ? await relationshipGraphRepository.GetGraphAsync(internalProjectId.Value, rootIds, MaxGraphDepth, MaxGraphNodes, cancellationToken)
             : CodeGraph.Empty;
 
         // Each match's own complete 1-hop relations, independent of MaxGraphNodes truncation -
         // see MatchRelation. See .specs/12-match-relations.md.
-        var relationsById = rootIds.Count > 0 && projectId is not null
-            ? await relationshipGraphRepository.GetDirectRelationsAsync(projectId.Value, rootIds, cancellationToken)
+        var relationsById = rootIds.Count > 0 && internalProjectId is not null
+            ? await relationshipGraphRepository.GetDirectRelationsAsync(internalProjectId.Value, rootIds, cancellationToken)
             : new Dictionary<long, IReadOnlyList<MatchRelation>>();
         results = results
             .Select(r => r with { Relations = relationsById.TryGetValue(r.Id, out var relations) ? relations : [] })

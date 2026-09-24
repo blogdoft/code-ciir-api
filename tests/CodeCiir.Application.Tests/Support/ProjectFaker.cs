@@ -8,6 +8,7 @@ internal static class ProjectFaker
     private static readonly Faker<Project> Instance = new Faker<Project>()
         .CustomInstantiator(faker => new Project(
             faker.Random.Long(1, 1000),
+            faker.Random.Guid(),
             faker.Commerce.ProductName(),
             "bge-m3",
             1024,

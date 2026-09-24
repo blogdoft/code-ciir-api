@@ -27,5 +27,5 @@ public sealed class ProjectTools(IProjectsService projectsService)
     }
 
     private static ProjectToolResult ToResult(Project project) => new(
-        project.Id, project.Name, project.EmbeddingModel, project.EmbeddingDimensions, project.CreatedAt, project.UpdatedAt);
+        project.PublicId, project.Name, project.EmbeddingModel, project.EmbeddingDimensions, project.CreatedAt, project.UpdatedAt);
 }

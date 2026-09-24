@@ -15,8 +15,8 @@ namespace CodeCiir.Api.Contracts;
 /// </param>
 /// <param name="ProjectId">
 /// Optional filter narrowing results to a single project, corresponding to a project id returned
-/// by the list_projects MCP tool. Omit to search across every project. When provided, must be
-/// a positive 64-bit integer and must correspond to an existing project (404 otherwise).
+/// by the list_projects MCP tool. Omit to search across every project. When provided, must
+/// correspond to an existing project (404 otherwise).
 /// </param>
 /// <param name="MinSimilarity">Optional minimum cosine similarity (0.0-1.0) a match must have to be included.</param>
 /// <param name="Kind">Optional filter narrowing results to code documents whose <c>kind</c> equals this value exactly. Omit for no filtering on this field.</param>
@@ -32,7 +32,7 @@ public sealed record CodeQueryRequest(
     [Required(AllowEmptyStrings = false, ErrorMessage = "The 'question' field is required and must not be empty or blank."),
         StringLength(CodeQueryService.MaxQuestionLength, ErrorMessage = "The 'question' field must not exceed {1} characters.")]
     string? Question,
-    [Range(1, long.MaxValue, ErrorMessage = "The 'projectId' field must be a positive integer when provided.")] long? ProjectId = null,
+    Guid? ProjectId = null,
     [Range(0.0, 1.0, ErrorMessage = "The 'minSimilarity' field must be between 0.0 and 1.0.")] double? MinSimilarity = null,
     [StringLength(CodeQueryService.MaxFilterValueLength, ErrorMessage = "The 'kind' field must not exceed {1} characters.")] string? Kind = null,
     CodeQueryQualifiedNameFilterRequest? QualifiedName = null,

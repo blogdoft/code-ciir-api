@@ -20,11 +20,11 @@ public abstract class BaseFeedbackServiceTests
 
     protected static DateTime Utc(int year, int month, int day) => new(year, month, day, 0, 0, 0, DateTimeKind.Utc);
 
-    protected void GivenProjectExists(long projectId) => ProjectsRepository
-        .GetByIdAsync(projectId, Arg.Any<CancellationToken>())
-        .Returns(ProjectFaker.Create() with { Id = projectId });
+    protected void GivenProjectExists(Guid publicId, long internalId) => ProjectsRepository
+        .GetByPublicIdAsync(publicId, Arg.Any<CancellationToken>())
+        .Returns(ProjectFaker.Create() with { Id = internalId, PublicId = publicId });
 
-    protected void GivenProjectDoesNotExist(long projectId) => ProjectsRepository
-        .GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+    protected void GivenProjectDoesNotExist(Guid publicId) => ProjectsRepository
+        .GetByPublicIdAsync(publicId, Arg.Any<CancellationToken>())
         .Returns((Project?)null);
 }

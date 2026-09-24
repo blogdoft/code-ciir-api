@@ -12,6 +12,7 @@ namespace CodeCiir.Infrastructure.Database.Projects;
 #pragma warning disable SA1313
 internal sealed record ProjectTable(
     long Id,
+    Guid PublicId,
     string Name,
     string EmbeddingModel,
     int EmbeddingDimensions,
@@ -24,6 +25,7 @@ internal sealed record ProjectTable(
     // with Kind=Unspecified, so it must be stamped explicitly to serialize with a "Z" suffix.
     public Project ToDomain() => new(
         Id,
+        PublicId,
         Name,
         EmbeddingModel,
         EmbeddingDimensions,

@@ -73,7 +73,7 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     public async Task<IActionResult> GetStatsAsync(
         [FromQuery(Name = "startDate")] DateTimeOffset? startDate,
         [FromQuery(Name = "endDate")] DateTimeOffset? endDate,
-        [FromQuery(Name = "projectId")] long? projectId,
+        [FromQuery(Name = "projectId")] Guid? projectId,
         CancellationToken cancellationToken)
     {
         var result = await feedbackService.GetStatsAsync(
@@ -148,7 +148,7 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     public async Task<IActionResult> ExportAsync(
         [FromQuery(Name = "startDate")] DateTimeOffset? startDate,
         [FromQuery(Name = "endDate")] DateTimeOffset? endDate,
-        [FromQuery(Name = "projectId")] long? projectId,
+        [FromQuery(Name = "projectId")] Guid? projectId,
         [FromQuery(Name = "timezone")] string? timezone,
         CancellationToken cancellationToken)
     {

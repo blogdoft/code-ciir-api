@@ -13,16 +13,17 @@ public sealed class QueryProjectCodeAsyncTests : BaseCodeQueryToolsTests
     [Fact]
     public async Task Should_PassEveryParameterThroughAndMapMatchesAndGraph_When_ServiceSucceeds()
     {
+        var projectId = Guid.NewGuid();
         var relation = new MatchRelation(1, 2, "calls", "C.N", "project");
         var match = CodeQueryResultFaker.Create() with { Id = 1, Relations = [relation] };
         var node = new GraphNode(2, "method", "C", "N", "C.N", "C.N()", "f2.cs", 1);
         var edge = new GraphEdge(1, 2, "calls", "C.N", "project", 0);
         CodeQueryService.QueryAsync(
-            "question", 7, 0.5, "method", QualifiedNameFilterOperator.Contains, "*Foo*", 5, Arg.Any<CancellationToken>())
+            "question", projectId, 0.5, "method", QualifiedNameFilterOperator.Contains, "*Foo*", 5, Arg.Any<CancellationToken>())
             .Returns(Result<CodeQueryResponse>.FromSuccess(new CodeQueryResponse([match], new CodeGraph([node], [edge], false))));
 
         var result = await Sut.QueryProjectCodeAsync(
-            "question", 7, 0.5, "method", QualifiedNameFilterOperator.Contains, "*Foo*", 5);
+            "question", projectId, 0.5, "method", QualifiedNameFilterOperator.Contains, "*Foo*", 5);
 
         result.Matches.Select(m => m.Id).ShouldBe([1L]);
         result.Matches[0].Relations.Select(r => r.RelationType).ShouldBe(["calls"]);
@@ -51,7 +52,7 @@ public sealed class QueryProjectCodeAsyncTests : BaseCodeQueryToolsTests
         var failure = CodeQueryFailures.QuestionRequired();
         CodeQueryService.QueryAsync(
             Arg.Any<string>(),
-            Arg.Any<long?>(),
+            Arg.Any<Guid?>(),
             Arg.Any<double?>(),
             Arg.Any<string?>(),
             Arg.Any<QualifiedNameFilterOperator?>(),

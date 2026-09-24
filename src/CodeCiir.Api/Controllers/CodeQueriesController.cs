@@ -145,7 +145,8 @@ public sealed class CodeQueriesController(ICodeQueryService codeQueryService, IF
             cancellationToken);
 
         return result.Map(
-            onSuccess: feedback => (IActionResult)StatusCode(StatusCodes.Status201Created, CodeQueryFeedbackResponse.From(feedback)),
+            onSuccess: feedback => (IActionResult)StatusCode(
+                StatusCodes.Status201Created, CodeQueryFeedbackResponse.From(feedback, request.ProjectId.Value)),
             onFailure: failure => failure.ToActionResult(HttpContext));
     }
 }

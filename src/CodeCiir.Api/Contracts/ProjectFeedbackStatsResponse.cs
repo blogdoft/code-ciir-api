@@ -18,7 +18,7 @@ namespace CodeCiir.Api.Contracts;
 /// </param>
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 public sealed record ProjectFeedbackStatsResponse(
-    long ProjectId,
+    Guid ProjectId,
     string ProjectName,
     long TotalCount,
     long UsefulCount,

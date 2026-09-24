@@ -14,13 +14,15 @@ public sealed class ExportAsyncTests(CustomWebApplicationFactory factory) : Base
 {
     private const string ExportPath = "/api/code-queries/feedback/export";
 
+    private static readonly Guid ProjectId = Guid.NewGuid();
+
     [Fact]
     public async Task Should_ReturnACsvAttachment_When_RequestIsValid()
     {
-        GivenExport(Utc(2026, 1, 1), Utc(2026, 2, 1), projectId: 1, createdAt: Utc(2026, 1, 5, 12));
+        GivenExport(Utc(2026, 1, 1), Utc(2026, 2, 1), projectId: ProjectId, createdAt: Utc(2026, 1, 5, 12));
         using var client = CreateClient();
 
-        using var response = await GetAsync(client, $"{ExportPath}?startDate=2026-01-01T00:00:00Z&endDate=2026-02-01T00:00:00Z&projectId=1");
+        using var response = await GetAsync(client, $"{ExportPath}?startDate=2026-01-01T00:00:00Z&endDate=2026-02-01T00:00:00Z&projectId={ProjectId}");
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         (response.Content.Headers.ContentType?.MediaType, response.Content.Headers.ContentDisposition?.DispositionType).ShouldBe(("text/csv", "attachment"));
@@ -30,13 +32,13 @@ public sealed class ExportAsyncTests(CustomWebApplicationFactory factory) : Base
     [Fact]
     public async Task Should_WriteOneRowPerFeedbackWithTheDocumentedColumns_When_RequestIsValid()
     {
-        GivenExport(Utc(2026, 1, 1), Utc(2026, 2, 1), projectId: 1, createdAt: Utc(2026, 1, 5, 12));
+        GivenExport(Utc(2026, 1, 1), Utc(2026, 2, 1), projectId: ProjectId, createdAt: Utc(2026, 1, 5, 12));
         using var client = CreateClient();
 
-        using var response = await GetAsync(client, $"{ExportPath}?startDate=2026-01-01T00:00:00Z&endDate=2026-02-01T00:00:00Z&projectId=1");
+        using var response = await GetAsync(client, $"{ExportPath}?startDate=2026-01-01T00:00:00Z&endDate=2026-02-01T00:00:00Z&projectId={ProjectId}");
 
         var row = (await ReadCsvRowsAsync(response)).ShouldHaveSingleItem();
-        (row["project_id"], row["useful"], row["similarities"], row["created_at"]).ShouldBe(("1", "True", "[0.91,0.73]", "2026-01-05T12:00:00Z"));
+        (row["project_id"], row["useful"], row["similarities"], row["created_at"]).ShouldBe((ProjectId.ToString(), "True", "[0.91,0.73]", "2026-01-05T12:00:00Z"));
     }
 
     [Fact]
@@ -62,7 +64,7 @@ public sealed class ExportAsyncTests(CustomWebApplicationFactory factory) : Base
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
         (await response.Content.ReadAsStringAsync()).ShouldContain(failure.Message);
-        await FeedbackService.DidNotReceive().ExportAsync(Arg.Any<DateTime?>(), Arg.Any<DateTime?>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
+        await FeedbackService.DidNotReceive().ExportAsync(Arg.Any<DateTime?>(), Arg.Any<DateTime?>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -81,11 +83,12 @@ public sealed class ExportAsyncTests(CustomWebApplicationFactory factory) : Base
     [Fact]
     public async Task Should_ReturnNotFoundWithEmptyBody_When_ProjectDoesNotExist()
     {
-        FeedbackService.ExportAsync(null, null, 999, Arg.Any<CancellationToken>())
-            .Returns(Result<FeedbackExportResult>.FromFailure(ProjectFailures.ProjectNotFound(999)));
+        var missingProjectId = Guid.NewGuid();
+        FeedbackService.ExportAsync(null, null, missingProjectId, Arg.Any<CancellationToken>())
+            .Returns(Result<FeedbackExportResult>.FromFailure(ProjectFailures.ProjectNotFound(missingProjectId)));
         using var client = CreateClient();
 
-        using var response = await GetAsync(client, $"{ExportPath}?projectId=999");
+        using var response = await GetAsync(client, $"{ExportPath}?projectId={missingProjectId}");
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await response.Content.ReadAsByteArrayAsync()).ShouldBeEmpty();
@@ -108,12 +111,12 @@ public sealed class ExportAsyncTests(CustomWebApplicationFactory factory) : Base
         return rows;
     }
 
-    private void GivenExport(DateTime? start, DateTime? end, long? projectId, DateTime createdAt)
+    private void GivenExport(DateTime? start, DateTime? end, Guid? projectId, DateTime createdAt)
     {
         var export = new FeedbackExportResult(
             start ?? DateTime.UtcNow,
             end ?? DateTime.UtcNow,
-            [new FeedbackExportRow(1, 1, Faker.Commerce.ProductName(), Faker.Lorem.Sentence(), true, [0.91, 0.73], null, Agent, createdAt)]);
+            [new FeedbackExportRow(1, ProjectId, Faker.Commerce.ProductName(), Faker.Lorem.Sentence(), true, [0.91, 0.73], null, Agent, createdAt)]);
         FeedbackService.ExportAsync(start, end, projectId, Arg.Any<CancellationToken>())
             .Returns(Result<FeedbackExportResult>.FromSuccess(export));
     }

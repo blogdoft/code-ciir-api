@@ -19,22 +19,23 @@ public sealed class GetStatsAsyncTests(CustomWebApplicationFactory factory) : Ba
     {
         var start = Utc(2026, 8, 4);
         var end = Utc(2026, 9, 3);
+        var projectId = Guid.NewGuid();
         var projectName = Faker.Commerce.ProductName();
         var stats = new FeedbackStatsResult(
             start,
             end,
-            [new WeeklyFeedbackStats(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 9), [new ProjectFeedbackStats(1, projectName, 5, 4, 1, 80, 20)])]);
-        FeedbackService.GetStatsAsync(start, end, 1, Arg.Any<CancellationToken>())
+            [new WeeklyFeedbackStats(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 9), [new ProjectFeedbackStats(projectId, projectName, 5, 4, 1, 80, 20)])]);
+        FeedbackService.GetStatsAsync(start, end, projectId, Arg.Any<CancellationToken>())
             .Returns(Result<FeedbackStatsResult>.FromSuccess(stats));
         using var client = CreateClient();
 
-        using var response = await GetAsync(client, $"{StatsPath}?startDate=2026-08-04T00:00:00Z&endDate=2026-09-03T00:00:00Z&projectId=1");
+        using var response = await GetAsync(client, $"{StatsPath}?startDate=2026-08-04T00:00:00Z&endDate=2026-09-03T00:00:00Z&projectId={projectId}");
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var week = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("weeks")[0];
         week.GetProperty("weekStart").GetString().ShouldBe("2026-08-03");
         var project = week.GetProperty("projects")[0];
-        (project.GetProperty("projectId").GetInt64(), project.GetProperty("usefulPercentage").GetDouble()).ShouldBe((1L, 80d));
+        (project.GetProperty("projectId").GetGuid(), project.GetProperty("usefulPercentage").GetDouble()).ShouldBe((projectId, 80d));
     }
 
     [Fact]
@@ -79,11 +80,12 @@ public sealed class GetStatsAsyncTests(CustomWebApplicationFactory factory) : Ba
     [Fact]
     public async Task Should_ReturnNotFoundWithEmptyBody_When_ProjectDoesNotExist()
     {
-        FeedbackService.GetStatsAsync(null, null, 999, Arg.Any<CancellationToken>())
-            .Returns(Result<FeedbackStatsResult>.FromFailure(ProjectFailures.ProjectNotFound(999)));
+        var missingProjectId = Guid.NewGuid();
+        FeedbackService.GetStatsAsync(null, null, missingProjectId, Arg.Any<CancellationToken>())
+            .Returns(Result<FeedbackStatsResult>.FromFailure(ProjectFailures.ProjectNotFound(missingProjectId)));
         using var client = CreateClient();
 
-        using var response = await GetAsync(client, $"{StatsPath}?projectId=999");
+        using var response = await GetAsync(client, $"{StatsPath}?projectId={missingProjectId}");
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await response.Content.ReadAsByteArrayAsync()).ShouldBeEmpty();
@@ -92,7 +94,7 @@ public sealed class GetStatsAsyncTests(CustomWebApplicationFactory factory) : Ba
     [Fact]
     public async Task Should_ReturnInternalServerErrorWithEmptyBody_When_ServiceThrows()
     {
-        FeedbackService.GetStatsAsync(Arg.Any<DateTime?>(), Arg.Any<DateTime?>(), Arg.Any<long?>(), Arg.Any<CancellationToken>())
+        FeedbackService.GetStatsAsync(Arg.Any<DateTime?>(), Arg.Any<DateTime?>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns<Result<FeedbackStatsResult>>(_ => throw new InvalidOperationException("boom"));
         using var client = CreateClient();
 

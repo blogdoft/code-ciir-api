@@ -55,12 +55,12 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
                 ) AS week_start
             ),
             eligible_projects AS (
-                SELECT id, name FROM public.projects
+                SELECT id, public_id, name FROM public.projects
                 {eligibleProjectsWhere}
             )
             SELECT
                 w.week_start AS WeekStart,
-                p.id AS ProjectId,
+                p.public_id AS ProjectId,
                 p.name AS ProjectName,
                 COUNT(f.id) AS TotalCount,
                 COUNT(f.id) FILTER (WHERE f.useful) AS UsefulCount,
@@ -71,8 +71,8 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
                 ON f.project_id = p.id
                 AND f.created_at >= @StartDate AND f.created_at <= @EndDate
                 AND date_trunc('week', f.created_at) = w.week_start
-            GROUP BY w.week_start, p.id, p.name
-            ORDER BY w.week_start, p.id
+            GROUP BY w.week_start, p.public_id, p.name
+            ORDER BY w.week_start, p.public_id
             """;
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -117,7 +117,7 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
         var sql = $"""
             SELECT
                 f.id AS Id,
-                f.project_id AS ProjectId,
+                p.public_id AS ProjectId,
                 p.name AS ProjectName,
                 f.question AS Question,
                 f.useful AS Useful,
@@ -155,7 +155,7 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
     {
         public long Id { get; set; }
 
-        public long ProjectId { get; set; }
+        public Guid ProjectId { get; set; }
 
         public string ProjectName { get; set; } = string.Empty;
 
@@ -183,7 +183,7 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
     private sealed record FeedbackStatsProjection(
         DateTime WeekStart,
-        long ProjectId,
+        Guid ProjectId,
         string ProjectName,
         long TotalCount,
         long UsefulCount,

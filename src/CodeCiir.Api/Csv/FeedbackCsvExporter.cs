@@ -24,7 +24,7 @@ internal static class FeedbackCsvExporter
         return memoryStream.ToArray();
     }
 
-    public static string ToFileName(FeedbackExportResult export, long? projectId)
+    public static string ToFileName(FeedbackExportResult export, Guid? projectId)
     {
         var projectSuffix = projectId is null ? string.Empty : $"_project-{projectId}";
         return $"feedback_export_{export.StartDate:yyyyMMdd}_{export.EndDate:yyyyMMdd}{projectSuffix}.csv";
@@ -60,7 +60,7 @@ internal static class FeedbackCsvExporter
 #pragma warning disable SA1313
     private sealed record FeedbackExportCsvRecord(
         [property: Name("id")] long Id,
-        [property: Name("project_id")] long ProjectId,
+        [property: Name("project_id")] Guid ProjectId,
         [property: Name("project_name")] string ProjectName,
         [property: Name("question")] string Question,
         [property: Name("useful")] bool Useful,

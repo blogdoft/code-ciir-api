@@ -9,7 +9,9 @@ namespace CodeCiir.Application.Tests.Feedback.FeedbackServiceTests;
 
 public sealed class SubmitAsyncTests : BaseFeedbackServiceTests
 {
-    private const long ProjectId = 1;
+    private const long InternalProjectId = 1;
+
+    private static readonly Guid ProjectId = Guid.NewGuid();
 
     [Theory]
     [InlineData(null)]
@@ -91,7 +93,7 @@ public sealed class SubmitAsyncTests : BaseFeedbackServiceTests
     [Fact]
     public async Task Should_ReturnProjectNotFoundFailure_When_ProjectDoesNotExist()
     {
-        const long missingProjectId = 999;
+        var missingProjectId = Guid.NewGuid();
         GivenProjectDoesNotExist(missingProjectId);
 
         var result = await Sut.SubmitAsync(missingProjectId, Faker.Lorem.Sentence(), true, [], null, Agent);
@@ -103,13 +105,13 @@ public sealed class SubmitAsyncTests : BaseFeedbackServiceTests
     [Fact]
     public async Task Should_InsertAndReturnTheStoredFeedback_When_RequestIsValid()
     {
-        GivenProjectExists(ProjectId);
+        GivenProjectExists(ProjectId, InternalProjectId);
         var question = Faker.Lorem.Sentence();
         double[] similarities = [0.8, 0.6];
-        var expected = new FeedbackResult(Faker.Random.Long(1, 1000), ProjectId, question, true, similarities, null, Agent, DateTime.UtcNow);
+        var expected = new FeedbackResult(Faker.Random.Long(1, 1000), InternalProjectId, question, true, similarities, null, Agent, DateTime.UtcNow);
         FeedbackRepository
             .InsertAsync(
-                Arg.Is<NewFeedback>(f => f.ProjectId == ProjectId
+                Arg.Is<NewFeedback>(f => f.ProjectId == InternalProjectId
                     && f.Question == question
                     && f.Useful
                     && f.Similarities.SequenceEqual(similarities)
@@ -127,9 +129,9 @@ public sealed class SubmitAsyncTests : BaseFeedbackServiceTests
     [Fact]
     public async Task Should_AcceptTheFeedback_When_SimilaritiesAreAnEmptyArray()
     {
-        GivenProjectExists(ProjectId);
+        GivenProjectExists(ProjectId, InternalProjectId);
         var question = Faker.Lorem.Sentence();
-        var expected = new FeedbackResult(1, ProjectId, question, true, [], null, Agent, DateTime.UtcNow);
+        var expected = new FeedbackResult(1, InternalProjectId, question, true, [], null, Agent, DateTime.UtcNow);
         FeedbackRepository.InsertAsync(Arg.Any<NewFeedback>(), Arg.Any<CancellationToken>()).Returns(expected);
 
         var result = await Sut.SubmitAsync(ProjectId, question, true, [], null, Agent);

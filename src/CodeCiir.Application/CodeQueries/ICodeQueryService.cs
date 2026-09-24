@@ -6,7 +6,7 @@ public interface ICodeQueryService
 {
     Task<Result<CodeQueryResponse>> QueryAsync(
         string? question,
-        long? projectId = null,
+        Guid? projectId = null,
         double? minSimilarity = null,
         string? kind = null,
         QualifiedNameFilterOperator? qualifiedNameOperator = null,

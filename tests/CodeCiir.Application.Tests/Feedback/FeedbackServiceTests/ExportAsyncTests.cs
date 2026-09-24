@@ -88,7 +88,7 @@ public sealed class ExportAsyncTests : BaseFeedbackServiceTests
     [Fact]
     public async Task Should_ReturnProjectNotFoundFailure_When_ProjectFilterDoesNotExist()
     {
-        const long missingProjectId = 999;
+        var missingProjectId = Guid.NewGuid();
         GivenProjectDoesNotExist(missingProjectId);
 
         var result = await Sut.ExportAsync(null, null, missingProjectId);
@@ -99,15 +99,16 @@ public sealed class ExportAsyncTests : BaseFeedbackServiceTests
     [Fact]
     public async Task Should_ReturnTheRepositoryRows_When_ProjectFilterExists()
     {
-        const long projectId = 1;
-        GivenProjectExists(projectId);
+        const long internalProjectId = 1;
+        var projectId = Guid.NewGuid();
+        GivenProjectExists(projectId, internalProjectId);
         var start = Utc(2026, 1, 1);
         var end = Utc(2026, 2, 1);
         List<FeedbackExportRow> rows =
         [
             new(1, projectId, Faker.Commerce.ProductName(), Faker.Lorem.Sentence(), true, [0.9], null, Agent, start.AddDays(1)),
         ];
-        FeedbackRepository.ExportAsync(start, end, projectId, Arg.Any<CancellationToken>()).Returns(rows);
+        FeedbackRepository.ExportAsync(start, end, internalProjectId, Arg.Any<CancellationToken>()).Returns(rows);
 
         var result = await Sut.ExportAsync(start, end, projectId);
 

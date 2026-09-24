@@ -86,7 +86,7 @@ public sealed class GetStatsAsyncTests : BaseFeedbackServiceTests
     [Fact]
     public async Task Should_ReturnProjectNotFoundFailure_When_ProjectFilterDoesNotExist()
     {
-        const long missingProjectId = 999;
+        var missingProjectId = Guid.NewGuid();
         GivenProjectDoesNotExist(missingProjectId);
 
         var result = await Sut.GetStatsAsync(null, null, missingProjectId);
@@ -97,13 +97,14 @@ public sealed class GetStatsAsyncTests : BaseFeedbackServiceTests
     [Fact]
     public async Task Should_ReturnTheRepositoryWeeks_When_ProjectFilterExists()
     {
-        const long projectId = 1;
-        GivenProjectExists(projectId);
+        const long internalProjectId = 1;
+        var projectId = Guid.NewGuid();
+        GivenProjectExists(projectId, internalProjectId);
         List<WeeklyFeedbackStats> weeks =
         [
             new(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 9), [new ProjectFeedbackStats(projectId, Faker.Commerce.ProductName(), 4, 3, 1, 75, 25)]),
         ];
-        FeedbackRepository.GetStatsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), projectId, Arg.Any<CancellationToken>())
+        FeedbackRepository.GetStatsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), internalProjectId, Arg.Any<CancellationToken>())
             .Returns(weeks);
 
         var result = await Sut.GetStatsAsync(null, null, projectId);

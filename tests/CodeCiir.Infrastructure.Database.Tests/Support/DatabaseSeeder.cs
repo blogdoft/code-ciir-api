@@ -15,17 +15,19 @@ internal sealed class DatabaseSeeder(NpgsqlDataSource dataSource)
         string embeddingModel = "test-model",
         int embeddingDimensions = 3,
         string? gitUrl = null,
-        string? gitRawUrl = null)
+        string? gitRawUrl = null,
+        Guid? publicId = null)
     {
         await using var connection = await dataSource.OpenConnectionAsync();
         return await connection.ExecuteScalarAsync<long>(
             """
-            INSERT INTO public.projects (name, embedding_model, embedding_dimensions, git_url, git_raw_url)
-            VALUES (@Name, @EmbeddingModel, @EmbeddingDimensions, @GitUrl, @GitRawUrl)
+            INSERT INTO public.projects (public_id, name, embedding_model, embedding_dimensions, git_url, git_raw_url)
+            VALUES (@PublicId, @Name, @EmbeddingModel, @EmbeddingDimensions, @GitUrl, @GitRawUrl)
             RETURNING id
             """,
             new
             {
+                PublicId = publicId ?? Guid.NewGuid(),
                 Name = name ?? $"proj-{Guid.NewGuid():N}",
                 EmbeddingModel = embeddingModel,
                 EmbeddingDimensions = embeddingDimensions,

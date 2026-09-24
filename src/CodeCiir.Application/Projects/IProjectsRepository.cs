@@ -13,6 +13,11 @@ public interface IProjectsRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Returns the project with the given id, or null when none exists.</summary>
-    Task<Project?> GetByIdAsync(long projectId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns the project with the given public id - the identifier every API/MCP caller actually
+    /// supplies - or null when none exists.
+    /// </summary>
+    /// <param name="publicId">The project's public id to look up.</param>
+    /// <param name="cancellationToken">Propagates request cancellation.</param>
+    Task<Project?> GetByPublicIdAsync(Guid publicId, CancellationToken cancellationToken = default);
 }

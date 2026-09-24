@@ -10,5 +10,5 @@ public interface IProjectsService
         int? pageSize,
         CancellationToken cancellationToken = default);
 
-    Task<Result<Project>> GetAsync(long projectId, CancellationToken cancellationToken = default);
+    Task<Result<Project>> GetAsync(Guid projectId, CancellationToken cancellationToken = default);
 }

@@ -10,6 +10,7 @@ public sealed class ProjectsRepository(NpgsqlDataSource dataSource) : IProjectsR
 {
     private const string ResultSet = """
         SELECT id AS Id
+             , public_id AS PublicId
              , name AS Name
              , embedding_model AS EmbeddingModel
              , embedding_dimensions AS EmbeddingDimensions
@@ -50,15 +51,15 @@ public sealed class ProjectsRepository(NpgsqlDataSource dataSource) : IProjectsR
         return (rows.Select(r => r.ToDomain()).ToList(), totalCount);
     }
 
-    public async Task<Project?> GetByIdAsync(long projectId, CancellationToken cancellationToken = default)
+    public async Task<Project?> GetByPublicIdAsync(Guid publicId, CancellationToken cancellationToken = default)
     {
         var sql = $"""
             {ResultSet}
-            WHERE id = @ProjectId
+            WHERE public_id = @PublicId
             """;
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        var command = new CommandDefinition(sql, new { ProjectId = projectId }, cancellationToken: cancellationToken);
+        var command = new CommandDefinition(sql, new { PublicId = publicId }, cancellationToken: cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<ProjectTable>(command);
         return row?.ToDomain();
     }

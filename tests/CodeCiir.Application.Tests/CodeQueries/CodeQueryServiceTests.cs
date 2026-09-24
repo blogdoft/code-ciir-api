@@ -13,6 +13,9 @@ namespace CodeCiir.Application.Tests.CodeQueries;
 public sealed class CodeQueryServiceTests
 {
     private const string Question = "where is the retry logic?";
+    private const long InternalProjectId = 1;
+
+    private static readonly Guid ProjectPublicId = Guid.NewGuid();
 
     private readonly IProjectsRepository _projectsRepository = Substitute.For<IProjectsRepository>();
     private readonly ICodeDocumentsRepository _codeDocumentsRepository = Substitute.For<ICodeDocumentsRepository>();
@@ -59,10 +62,10 @@ public sealed class CodeQueryServiceTests
     [InlineData("   ")]
     public async Task Should_ReturnQuestionRequiredFailure_When_QuestionIsMissingOrBlank(string? question)
     {
-        var result = await _sut.QueryAsync(question, projectId: 1);
+        var result = await _sut.QueryAsync(question, projectId: ProjectPublicId);
 
         result.ShouldBeFailure(CodeQueryFailures.QuestionRequired());
-        await _projectsRepository.DidNotReceive().GetByIdAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await _projectsRepository.DidNotReceive().GetByPublicIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -70,20 +73,9 @@ public sealed class CodeQueryServiceTests
     {
         var tooLong = new string('a', CodeQueryService.MaxQuestionLength + 1);
 
-        var result = await _sut.QueryAsync(tooLong, projectId: 1);
+        var result = await _sut.QueryAsync(tooLong, projectId: ProjectPublicId);
 
         result.ShouldBeFailure(CodeQueryFailures.QuestionTooLong(CodeQueryService.MaxQuestionLength));
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public async Task Should_ReturnProjectIdInvalidFailure_When_ProjectIdIsNotPositive(long invalidProjectId)
-    {
-        var result = await _sut.QueryAsync(Question, invalidProjectId);
-
-        result.ShouldBeFailure(CodeQueryFailures.ProjectIdInvalid());
-        await _projectsRepository.DidNotReceive().GetByIdAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -137,8 +129,8 @@ public sealed class CodeQueryServiceTests
     [Fact]
     public async Task Should_ReturnProjectNotFoundFailure_When_GivenProjectDoesNotExist()
     {
-        const long missingProjectId = 1;
-        _projectsRepository.GetByIdAsync(missingProjectId, Arg.Any<CancellationToken>()).Returns((Project?)null);
+        var missingProjectId = Guid.NewGuid();
+        _projectsRepository.GetByPublicIdAsync(missingProjectId, Arg.Any<CancellationToken>()).Returns((Project?)null);
 
         var result = await _sut.QueryAsync(Question, projectId: missingProjectId);
 
@@ -151,19 +143,19 @@ public sealed class CodeQueryServiceTests
         var result = await _sut.QueryAsync(Question);
 
         result.IsSuccess.ShouldBeTrue();
-        await _projectsRepository.DidNotReceive().GetByIdAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await _projectsRepository.DidNotReceive().GetByPublicIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Should_SearchWithDefaultLimitAndReturnMatches_When_QuestionIsValid()
     {
-        GivenProjectExists(1);
+        GivenProjectExists();
         var searched = CodeQueryResultFaker.Create();
         _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), null, 1, null, null, null, CodeQueryService.DefaultLimit, Arg.Any<CancellationToken>())
+            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), null, InternalProjectId, null, null, null, CodeQueryService.DefaultLimit, Arg.Any<CancellationToken>())
             .Returns([searched]);
 
-        var result = await _sut.QueryAsync(Question, projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: ProjectPublicId);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Matches.ShouldBe([searched with { Relations = [] }]);
@@ -184,11 +176,11 @@ public sealed class CodeQueryServiceTests
     [Fact]
     public async Task Should_PassEveryFilterToRepository_When_AllFiltersAreProvided()
     {
-        GivenProjectExists(1);
+        GivenProjectExists();
 
         var result = await _sut.QueryAsync(
             Question,
-            projectId: 1,
+            projectId: ProjectPublicId,
             minSimilarity: 0.5,
             kind: "method",
             qualifiedNameOperator: QualifiedNameFilterOperator.Contains,
@@ -197,7 +189,7 @@ public sealed class CodeQueryServiceTests
 
         result.IsSuccess.ShouldBeTrue();
         await _codeDocumentsRepository.Received(1).SearchAsync(
-            Arg.Any<IReadOnlyList<float>>(), 0.5, 1, "method", QualifiedNameFilterOperator.Contains, "*Foo*", 20, Arg.Any<CancellationToken>());
+            Arg.Any<IReadOnlyList<float>>(), 0.5, InternalProjectId, "method", QualifiedNameFilterOperator.Contains, "*Foo*", 20, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -264,15 +256,15 @@ public sealed class CodeQueryServiceTests
     [Fact]
     public async Task Should_ExpandGraphFromMatchIds_When_MatchesAreFoundAndProjectIdIsGiven()
     {
-        GivenProjectExists(1);
+        GivenProjectExists();
         var match = CodeQueryResultFaker.Create() with { Id = 42 };
         GivenSearchReturns(match);
         var expectedGraph = new CodeGraph([new GraphNode(7, "method", null, "Bar", null, null, null, 1)], [], false);
         _relationshipGraphRepository
-            .GetGraphAsync(1, Arg.Is<IReadOnlyList<long>>(ids => ids.SequenceEqual(new long[] { 42 })), CodeQueryService.MaxGraphDepth, CodeQueryService.MaxGraphNodes, Arg.Any<CancellationToken>())
+            .GetGraphAsync(InternalProjectId, Arg.Is<IReadOnlyList<long>>(ids => ids.SequenceEqual(new long[] { 42 })), CodeQueryService.MaxGraphDepth, CodeQueryService.MaxGraphNodes, Arg.Any<CancellationToken>())
             .Returns(expectedGraph);
 
-        var result = await _sut.QueryAsync(Question, projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: ProjectPublicId);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Graph.ShouldBe(expectedGraph);
@@ -294,9 +286,9 @@ public sealed class CodeQueryServiceTests
     [Fact]
     public async Task Should_ReturnEmptyGraphWithoutExpanding_When_NoMatchesAreFound()
     {
-        GivenProjectExists(1);
+        GivenProjectExists();
 
-        var result = await _sut.QueryAsync(Question, projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: ProjectPublicId);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Graph.ShouldBe(CodeGraph.Empty);
@@ -307,15 +299,15 @@ public sealed class CodeQueryServiceTests
     [Fact]
     public async Task Should_PopulateMatchRelationsFromRepository_When_MatchesAreFoundAndProjectIdIsGiven()
     {
-        GivenProjectExists(1);
+        GivenProjectExists();
         var match = CodeQueryResultFaker.Create() with { Id = 42 };
         GivenSearchReturns(match);
         var relation = new MatchRelation(42, 7, "calls", "Bar", "project");
         _relationshipGraphRepository
-            .GetDirectRelationsAsync(1, Arg.Is<IReadOnlyList<long>>(ids => ids.SequenceEqual(new long[] { 42 })), Arg.Any<CancellationToken>())
+            .GetDirectRelationsAsync(InternalProjectId, Arg.Is<IReadOnlyList<long>>(ids => ids.SequenceEqual(new long[] { 42 })), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<long, IReadOnlyList<MatchRelation>> { [42] = [relation] });
 
-        var result = await _sut.QueryAsync(Question, projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: ProjectPublicId);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Matches.Single().Relations.ShouldBe([relation]);
@@ -324,13 +316,13 @@ public sealed class CodeQueryServiceTests
     [Fact]
     public async Task Should_ReturnEmptyRelations_When_MatchHasNoDirectRelations()
     {
-        GivenProjectExists(1);
+        GivenProjectExists();
         GivenSearchReturns(CodeQueryResultFaker.Create());
         _relationshipGraphRepository
-            .GetDirectRelationsAsync(1, Arg.Any<IReadOnlyList<long>>(), Arg.Any<CancellationToken>())
+            .GetDirectRelationsAsync(InternalProjectId, Arg.Any<IReadOnlyList<long>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<long, IReadOnlyList<MatchRelation>>());
 
-        var result = await _sut.QueryAsync(Question, projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: ProjectPublicId);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Matches.Single().Relations.ShouldBeEmpty();
@@ -352,18 +344,18 @@ public sealed class CodeQueryServiceTests
     [Fact]
     public async Task Should_SkipDirectRelationsLookup_When_NoMatchesAreFound()
     {
-        GivenProjectExists(1);
+        GivenProjectExists();
 
-        var result = await _sut.QueryAsync(Question, projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: ProjectPublicId);
 
         result.IsSuccess.ShouldBeTrue();
         await _relationshipGraphRepository.DidNotReceive().GetDirectRelationsAsync(
             Arg.Any<long>(), Arg.Any<IReadOnlyList<long>>(), Arg.Any<CancellationToken>());
     }
 
-    private void GivenProjectExists(long projectId) => _projectsRepository
-        .GetByIdAsync(projectId, Arg.Any<CancellationToken>())
-        .Returns(ProjectFaker.Create() with { Id = projectId });
+    private void GivenProjectExists() => _projectsRepository
+        .GetByPublicIdAsync(ProjectPublicId, Arg.Any<CancellationToken>())
+        .Returns(ProjectFaker.Create() with { Id = InternalProjectId, PublicId = ProjectPublicId });
 
     private void GivenSearchReturns(params CodeQueryResult[] results) => _codeDocumentsRepository
         .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())

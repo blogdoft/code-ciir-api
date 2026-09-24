@@ -4,7 +4,7 @@ namespace CodeCiir.Application.Feedback;
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 public sealed record FeedbackExportRow(
     long Id,
-    long ProjectId,
+    Guid ProjectId,
     string ProjectName,
     string Question,
     bool Useful,

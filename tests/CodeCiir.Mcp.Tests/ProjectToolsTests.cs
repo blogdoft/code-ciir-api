@@ -26,7 +26,7 @@ public sealed class ProjectToolsTests
 
         var result = await Sut.ListProjectsAsync(project.Name);
 
-        result.Select(p => (p.Id, p.Name)).ShouldBe([(project.Id, project.Name)]);
+        result.Select(p => (p.Id, p.Name)).ShouldBe([(project.PublicId, project.Name)]);
     }
 
     [Fact]

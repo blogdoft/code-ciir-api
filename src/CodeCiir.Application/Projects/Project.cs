@@ -7,6 +7,7 @@ namespace CodeCiir.Application.Projects;
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 public sealed record Project(
     long Id,
+    Guid PublicId,
     string Name,
     string EmbeddingModel,
     int EmbeddingDimensions,

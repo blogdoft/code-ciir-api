@@ -5,7 +5,7 @@ namespace CodeCiir.Application.Feedback;
 public interface IFeedbackService
 {
     Task<Result<FeedbackResult>> SubmitAsync(
-        long projectId,
+        Guid projectId,
         string? question,
         bool? useful,
         IReadOnlyList<double>? similarities,
@@ -34,7 +34,7 @@ public interface IFeedbackService
     Task<Result<FeedbackStatsResult>> GetStatsAsync(
         DateTime? startDate,
         DateTime? endDate,
-        long? projectId,
+        Guid? projectId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -58,6 +58,6 @@ public interface IFeedbackService
     Task<Result<FeedbackExportResult>> ExportAsync(
         DateTime? startDate,
         DateTime? endDate,
-        long? projectId,
+        Guid? projectId,
         CancellationToken cancellationToken = default);
 }

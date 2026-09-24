@@ -9,7 +9,7 @@ namespace CodeCiir.Api.Contracts;
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 public sealed record CodeQueryFeedbackResponse(
     long Id,
-    long ProjectId,
+    Guid ProjectId,
     string Question,
     bool Useful,
     IReadOnlyList<double> Similarities,
@@ -17,9 +17,15 @@ public sealed record CodeQueryFeedbackResponse(
     string User,
     DateTime CreatedAt)
 {
-    public static CodeQueryFeedbackResponse From(FeedbackResult result) => new(
+    /// <summary>Maps a persisted feedback record to its response shape.</summary>
+    /// <param name="result">The persisted feedback record.</param>
+    /// <param name="projectId">
+    /// The caller-supplied project public id the feedback was submitted for - echoed back rather
+    /// than round-tripped through <paramref name="result"/>, which only carries the internal id.
+    /// </param>
+    public static CodeQueryFeedbackResponse From(FeedbackResult result, Guid projectId) => new(
         result.Id,
-        result.ProjectId,
+        projectId,
         result.Question,
         result.Useful,
         result.Similarities,

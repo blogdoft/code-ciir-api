@@ -14,13 +14,15 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
 {
     private const string Question = "where is Baz?";
 
+    private static readonly Guid ProjectId = Guid.NewGuid();
+
     [Fact]
     public async Task Should_ReturnOkWithCamelCaseMatchesAndRelations_When_QuestionIsValid()
     {
-        GivenQueryReturns(1);
+        GivenQueryReturns(ProjectId);
         using var client = CreateClient();
 
-        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = 1 });
+        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = ProjectId });
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var match = (await ReadBodyAsync(response)).GetProperty("matches")[0];
@@ -34,10 +36,10 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
     [Fact]
     public async Task Should_ReturnTheRelationshipGraphInCamelCase_When_ProjectIdIsGiven()
     {
-        GivenQueryReturns(1);
+        GivenQueryReturns(ProjectId);
         using var client = CreateClient();
 
-        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = 1 });
+        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = ProjectId });
 
         var graph = (await ReadBodyAsync(response)).GetProperty("graph");
         graph.GetProperty("nodes").GetArrayLength().ShouldBe(1);
@@ -48,10 +50,10 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
     [Fact]
     public async Task Should_NotExposeAnySnakeCaseProperty_When_ResponseIsSerialized()
     {
-        GivenQueryReturns(1);
+        GivenQueryReturns(ProjectId);
         using var client = CreateClient();
 
-        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = 1 });
+        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = ProjectId });
 
         (await response.Content.ReadAsStringAsync()).ShouldNotContain("_");
     }
@@ -87,7 +89,7 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
     {
         using var client = CreateClient();
 
-        using var response = await PostAsync(client, CodeQueriesPath, new { projectId = 1 });
+        using var response = await PostAsync(client, CodeQueriesPath, new { projectId = ProjectId });
 
         await AssertBadRequestNamingAsync(response, "question");
     }
@@ -103,11 +105,11 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
     }
 
     [Fact]
-    public async Task Should_ReturnBadRequestNamingTheProjectId_When_ProjectIdIsNotPositive()
+    public async Task Should_ReturnBadRequestNamingTheProjectId_When_ProjectIdIsNotAValidGuid()
     {
         using var client = CreateClient();
 
-        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = 0 });
+        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = "not-a-guid" });
 
         await AssertBadRequestNamingAsync(response, "projectId");
     }
@@ -127,7 +129,7 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
     {
         using var client = CreateClient();
 
-        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, project_id = 1 });
+        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, project_id = ProjectId });
 
         await AssertBadRequestNamingAsync(response, "project_id");
     }
@@ -150,11 +152,12 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
     [Fact]
     public async Task Should_ReturnNotFoundWithEmptyBody_When_ProjectDoesNotExist()
     {
-        CodeQueryService.QueryAsync(Question, 999, null, null, null, null, null, Arg.Any<CancellationToken>())
-            .Returns(Result<CodeQueryResponse>.FromFailure(ProjectFailures.ProjectNotFound(999)));
+        var missingProjectId = Guid.NewGuid();
+        CodeQueryService.QueryAsync(Question, missingProjectId, null, null, null, null, null, Arg.Any<CancellationToken>())
+            .Returns(Result<CodeQueryResponse>.FromFailure(ProjectFailures.ProjectNotFound(missingProjectId)));
         using var client = CreateClient();
 
-        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = 999 });
+        using var response = await PostAsync(client, CodeQueriesPath, new { question = Question, projectId = missingProjectId });
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await response.Content.ReadAsByteArrayAsync()).ShouldBeEmpty();
@@ -163,7 +166,7 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
     [Fact]
     public async Task Should_ReturnInternalServerErrorWithEmptyBody_When_ServiceThrows()
     {
-        CodeQueryService.QueryAsync(Arg.Any<string?>(), Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        CodeQueryService.QueryAsync(Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<double?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
             .Returns<Result<CodeQueryResponse>>(_ => throw new InvalidOperationException("connection string leaked: Password=secret"));
         using var client = CreateClient();
 
@@ -184,7 +187,7 @@ public sealed class QueryAsyncTests(CustomWebApplicationFactory factory) : BaseC
         errors.EnumerateObject().ShouldContain(error => error.Name.Contains(field, StringComparison.Ordinal));
     }
 
-    private void GivenQueryReturns(long projectId)
+    private void GivenQueryReturns(Guid projectId)
     {
         var match = new CodeQueryResult(
             1,

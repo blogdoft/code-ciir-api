@@ -19,7 +19,7 @@ public sealed class FeedbackService(
     public const int MaxWindowDays = 366;
 
     public async Task<Result<FeedbackResult>> SubmitAsync(
-        long projectId,
+        Guid projectId,
         string? question,
         bool? useful,
         IReadOnlyList<double>? similarities,
@@ -67,14 +67,14 @@ public sealed class FeedbackService(
             return FeedbackFailures.ReasonTooLong(MaxReasonLength);
         }
 
-        var projectExists = await projectsRepository.GetByIdAsync(projectId, cancellationToken) is not null;
-        if (!projectExists)
+        var project = await projectsRepository.GetByPublicIdAsync(projectId, cancellationToken);
+        if (project is null)
         {
             return ProjectFailures.ProjectNotFound(projectId);
         }
 
         var feedback = await feedbackRepository.InsertAsync(
-            new NewFeedback(projectId, question, useful.Value, similarities, reason, user),
+            new NewFeedback(project.Id, question, useful.Value, similarities, reason, user),
             cancellationToken);
         return Result<FeedbackResult>.FromSuccess(feedback);
     }
@@ -82,7 +82,7 @@ public sealed class FeedbackService(
     public async Task<Result<FeedbackStatsResult>> GetStatsAsync(
         DateTime? startDate,
         DateTime? endDate,
-        long? projectId,
+        Guid? projectId,
         CancellationToken cancellationToken = default)
     {
         // Both given: startDate > endDate is only meaningful to reject when the caller
@@ -101,16 +101,19 @@ public sealed class FeedbackService(
             return FeedbackFailures.WindowTooLarge();
         }
 
+        long? internalProjectId = null;
         if (projectId is not null)
         {
-            var projectExists = await projectsRepository.GetByIdAsync(projectId.Value, cancellationToken) is not null;
-            if (!projectExists)
+            var project = await projectsRepository.GetByPublicIdAsync(projectId.Value, cancellationToken);
+            if (project is null)
             {
                 return ProjectFailures.ProjectNotFound(projectId.Value);
             }
+
+            internalProjectId = project.Id;
         }
 
-        var weeks = await feedbackRepository.GetStatsAsync(effectiveStart, effectiveEnd, projectId, cancellationToken);
+        var weeks = await feedbackRepository.GetStatsAsync(effectiveStart, effectiveEnd, internalProjectId, cancellationToken);
 
         return Result<FeedbackStatsResult>.FromSuccess(new FeedbackStatsResult(effectiveStart, effectiveEnd, weeks));
     }
@@ -118,7 +121,7 @@ public sealed class FeedbackService(
     public async Task<Result<FeedbackExportResult>> ExportAsync(
         DateTime? startDate,
         DateTime? endDate,
-        long? projectId,
+        Guid? projectId,
         CancellationToken cancellationToken = default)
     {
         // Unlike GetStatsAsync, each side defaults independently of the other - no ±N-days
@@ -136,16 +139,19 @@ public sealed class FeedbackService(
             return FeedbackFailures.WindowTooLarge();
         }
 
+        long? internalProjectId = null;
         if (projectId is not null)
         {
-            var projectExists = await projectsRepository.GetByIdAsync(projectId.Value, cancellationToken) is not null;
-            if (!projectExists)
+            var project = await projectsRepository.GetByPublicIdAsync(projectId.Value, cancellationToken);
+            if (project is null)
             {
                 return ProjectFailures.ProjectNotFound(projectId.Value);
             }
+
+            internalProjectId = project.Id;
         }
 
-        var rows = await feedbackRepository.ExportAsync(effectiveStart, effectiveEnd, projectId, cancellationToken);
+        var rows = await feedbackRepository.ExportAsync(effectiveStart, effectiveEnd, internalProjectId, cancellationToken);
 
         return Result<FeedbackExportResult>.FromSuccess(new FeedbackExportResult(effectiveStart, effectiveEnd, rows));
     }

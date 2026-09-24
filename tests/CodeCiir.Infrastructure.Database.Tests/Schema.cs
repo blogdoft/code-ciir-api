@@ -14,6 +14,7 @@ internal static class Schema
     public const string CreateProjects = """
         CREATE TABLE public.projects (
             id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            public_id uuid NOT NULL,
             name text NOT NULL,
             embedding_model text NOT NULL,
             embedding_dimensions integer NOT NULL,
@@ -21,7 +22,8 @@ internal static class Schema
             git_raw_url text,
             created_at timestamptz NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
             updated_at timestamptz NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
-            CONSTRAINT ux_projects_name UNIQUE (name)
+            CONSTRAINT ux_projects_name UNIQUE (name),
+            CONSTRAINT ux_projects_public_id UNIQUE (public_id)
         );
         """;
 

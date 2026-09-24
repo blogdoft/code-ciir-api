@@ -16,10 +16,6 @@ public static class CodeQueryFailures
         "400-min-similarity-out-of-range",
         "The 'minSimilarity' field must be between 0.0 and 1.0.");
 
-    public static Failure ProjectIdInvalid() => new(
-        "400-project-id-invalid",
-        "The 'projectId' field must be a positive integer when provided.");
-
     public static Failure CodeDocumentIdInvalid() => new(
         "400-code-document-id-invalid",
         "The 'documentId' field must be a positive integer.");

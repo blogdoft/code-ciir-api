@@ -4,7 +4,7 @@ namespace CodeCiir.Mcp.Tools;
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 public sealed record CodeQueryFeedbackToolResult(
     long Id,
-    long ProjectId,
+    Guid ProjectId,
     string Question,
     bool Useful,
     IReadOnlyList<double> Similarities,

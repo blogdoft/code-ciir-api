@@ -7,8 +7,7 @@ namespace CodeCiir.Api.Contracts;
 /// <summary>Feedback on a prior `POST .../code-queries` call, scoped to a single project.</summary>
 /// <param name="ProjectId">
 /// Identifier of the project the original code-queries call was scoped to, corresponding to the
-/// id of a project returned by the list_projects MCP tool. Required, must be a positive 64-bit
-/// integer.
+/// id of a project returned by the list_projects MCP tool. Required.
 /// </param>
 /// <param name="Question">The original natural language question, echoed back on the persisted record.</param>
 /// <param name="Useful">Whether the results of the original code-queries call were useful.</param>
@@ -18,9 +17,8 @@ namespace CodeCiir.Api.Contracts;
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CodeQueryFeedbackRequest(
-    [Required(ErrorMessage = "The 'projectId' field is required and must be a positive integer."),
-        Range(1, long.MaxValue, ErrorMessage = "The 'projectId' field is required and must be a positive integer.")]
-    long? ProjectId,
+    [Required(ErrorMessage = "The 'projectId' field is required.")]
+    Guid? ProjectId,
     [Required(AllowEmptyStrings = false, ErrorMessage = "The 'question' field is required and must not be empty or blank."),
         StringLength(FeedbackService.MaxQuestionLength, ErrorMessage = "The 'question' field must not exceed {1} characters.")]
     string? Question,

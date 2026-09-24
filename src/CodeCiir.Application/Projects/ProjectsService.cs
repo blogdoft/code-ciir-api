@@ -45,9 +45,9 @@ public sealed class ProjectsService(IProjectsRepository projectsRepository) : IP
         return new ProjectPage(items, resolvedPage, resolvedPageSize, totalCount, totalPages);
     }
 
-    public async Task<Result<Project>> GetAsync(long projectId, CancellationToken cancellationToken = default)
+    public async Task<Result<Project>> GetAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
-        var project = await projectsRepository.GetByIdAsync(projectId, cancellationToken);
+        var project = await projectsRepository.GetByPublicIdAsync(projectId, cancellationToken);
         return project is null
             ? ProjectFailures.ProjectNotFound(projectId)
             : project;
