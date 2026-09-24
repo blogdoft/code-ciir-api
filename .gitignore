@@ -17,3 +17,6 @@ obj/
 ## OS
 .DS_Store
 Thumbs.db
+
+## Claude Code (local, per-machine settings)
+.claude/settings.local.json
