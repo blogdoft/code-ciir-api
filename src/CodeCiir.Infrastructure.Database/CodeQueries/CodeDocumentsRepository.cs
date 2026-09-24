@@ -15,7 +15,7 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
             SELECT cd.id AS DocumentId
                  , cd.source_path AS SourceFile
                  , CASE
-                       WHEN p.git_raw_url IS NULL OR cd.source_path IS NULL THEN NULL
+                       WHEN NULLIF(BTRIM(p.git_raw_url), '') IS NULL OR cd.source_path IS NULL THEN NULL
                        ELSE RTRIM(p.git_raw_url, '/') || '/' || LTRIM(cd.source_path, '/')
                    END AS GitRawUrl
             FROM public.ciir_documents cd
@@ -71,7 +71,7 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
                  , cd.source_path AS SourceFile
                  , p.git_url AS GitUrl
                  , CASE
-                       WHEN p.git_raw_url IS NULL THEN NULL
+                       WHEN NULLIF(BTRIM(p.git_raw_url), '') IS NULL THEN NULL
                        ELSE RTRIM(p.git_raw_url, '/') || '/' || LTRIM(cd.source_path, '/')
                    END AS GitRawUrl
                  , cd.embedding_text AS EmbeddingText
@@ -148,8 +148,8 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
             SourceFile,
             EmbeddingText,
             Similarity,
-            GitUrl: GitUrl is null ? null : new Uri(GitUrl, UriKind.Absolute),
-            GitRawUrl: GitRawUrl is null ? null : new Uri(GitRawUrl, UriKind.Absolute));
+            GitUrl: UriColumn.ToUriOrNull(GitUrl),
+            GitRawUrl: UriColumn.ToUriOrNull(GitRawUrl));
     }
 #pragma warning restore SA1313
 
@@ -158,6 +158,6 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
         public CodeDocumentSource ToSource() => new(
             DocumentId,
             SourceFile,
-            GitRawUrl is null ? null : new Uri(GitRawUrl, UriKind.Absolute));
+            UriColumn.ToUriOrNull(GitRawUrl));
     }
 }

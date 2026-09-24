@@ -184,6 +184,19 @@ public sealed class SearchAsyncTests(PostgresFixture fixture) : BaseCodeDocument
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Should_ReturnNullUrls_When_ProjectUrlsAreEmpty(string emptyUrl)
+    {
+        var projectId = await Seeder.InsertProjectAsync(gitUrl: emptyUrl, gitRawUrl: emptyUrl);
+        await Seeder.InsertDocumentAsync(projectId, "widget", [1f, 0f, 0f], sourcePath: SourcePath);
+
+        var result = (await Sut.SearchAsync(Query, null, projectId, null, null, null, limit: 10)).Single();
+
+        (result.GitUrl, result.GitRawUrl).ShouldBe((null, null));
+    }
+
+    [Theory]
     [InlineData("https://raw.githubusercontent.com/acme/widgets/main", "src/Widgets/Widget.cs")]
     [InlineData("https://raw.githubusercontent.com/acme/widgets/main/", "/src/Widgets/Widget.cs")]
     public async Task Should_SeparateRawUrlAndSourcePathWithExactlyOneSlash_When_EitherHasASlashAtTheJoin(string gitRawUrl, string sourcePath)

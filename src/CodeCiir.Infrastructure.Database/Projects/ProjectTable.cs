@@ -29,8 +29,8 @@ internal sealed record ProjectTable(
         Name,
         EmbeddingModel,
         EmbeddingDimensions,
-        GitUrl is null ? null : new Uri(GitUrl),
-        GitRawUrl is null ? null : new Uri(GitRawUrl),
+        UriColumn.ToUriOrNull(GitUrl),
+        UriColumn.ToUriOrNull(GitRawUrl),
         DateTime.SpecifyKind(CreatedAt, DateTimeKind.Utc),
         DateTime.SpecifyKind(UpdatedAt, DateTimeKind.Utc));
 }
