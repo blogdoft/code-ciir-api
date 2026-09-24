@@ -18,10 +18,11 @@ data:
   PublicBaseUrl: "https://blogdoft.home.arpa/code-brain"
   # Traces flow through the cluster collector, which enriches them with Kubernetes metadata and
   # exports them to Tempo. The collector exposes OTLP/gRPC on port 4317. Configured through the
-  # "Observability" section read by BlogDoFT.Libs.Api.OpenTelemetry (see ObservabilityExtensions.cs):
-  # ApplicationName becomes the service name; logs stay on stdout as structured JSON (scraped from the
-  # container), so no log exporter; no metrics exporter either.
-  ApplicationName: "code-ciir-api"
+  # "Observability" section read by BlogDoFT.Libs.Api.OpenTelemetry (see ObservabilityExtensions.cs);
+  # logs stay on stdout as structured JSON (scraped from the container), so no log exporter; no
+  # metrics exporter either. The service name comes from OTEL_SERVICE_NAME, NOT from
+  # "ApplicationName" - the ASP.NET host reserves that key and always sets it to the assembly name.
+  OTEL_SERVICE_NAME: "code-ciir-api"
   Observability__OpenTelemetry__UseTracingExporter: "Otlp"
   Observability__OpenTelemetry__UseMetricsExporter: "DoNotUse"
   Observability__OpenTelemetry__UseLogExporter: "DoNotUse"

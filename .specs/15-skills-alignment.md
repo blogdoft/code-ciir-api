@@ -51,8 +51,8 @@ formato dos resultados continuam como em `07-mcp-tools.md` / `13-mcp-code-source
   quando o Keycloak está ligado.
 - **Observabilidade**: Serilog + OpenTelemetry manual substituídos por
   `BlogDoFT.Libs.Api.OpenTelemetry` (seção `Observability`), mais `AddNpgsql()` para spans do
-  Postgres. Logs seguem em stdout como JSON estruturado (`AddJsonConsole`). Mudança de deploy: o
-  `configmap.yaml` troca as variáveis `OTEL_*` por `Observability__*` + `ApplicationName`. O
+  Postgres. Logs seguem em stdout como JSON estruturado (`AddJsonConsole`). Mudança de deploy (⚠️ ver correção do nome do serviço abaixo): o
+  `configmap.yaml` troca as variáveis `OTEL_*` por `Observability__*`, mantendo `OTEL_SERVICE_NAME`. O
   *request logging* do Serilog deixou de existir (o nível `Microsoft.AspNetCore` segue `Warning`);
   a visibilidade de requisições vem dos traces, e falhas `4xx/5xx` mapeadas são logadas pela app.
 - Infra: `ProjectTable` e `CodeQueryFeedbackTable` (`ToDomain()`; `FromDomain()` só onde há escrita).
@@ -79,3 +79,12 @@ em branco; dados via `Faker<T>` (Bogus); asserções de `Result` verificam a fal
 (`ShouldBeFailure`). Novos testes: `ModelValidationFilter`, `UnhandledExceptionFilter`,
 `FailureResults`, `ClaimsPrincipalExtensions`, respostas `401/403` do Keycloak, tags/exemplos do
 OpenAPI, ausência de `snake_case` na resposta.
+
+## ⚠️ Correção pós-deploy: nome do serviço nos traces
+
+A `v0.8.0` foi ao ar com os traces sob `service.name = CodeCiir.Api` (antes: `code-ciir-api`),
+quebrando qualquer dashboard/alerta que filtre pelo nome antigo. A lib `BlogDoFT.Libs.Api.OpenTelemetry`
+nomeia o serviço por `ApplicationName`, chave reservada pelo host do ASP.NET (sempre o nome do
+assembly), então o `ApplicationName` posto no `configmap.yaml` nunca teve efeito. `AddObservability`
+passou a definir o nome explicitamente (`OTEL_SERVICE_NAME`, padrão `code-ciir-api`) e o
+`configmap.yaml` voltou a definir `OTEL_SERVICE_NAME`.
