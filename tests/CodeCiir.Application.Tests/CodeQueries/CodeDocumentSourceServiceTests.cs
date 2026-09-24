@@ -1,4 +1,6 @@
+using Bogus;
 using CodeCiir.Application.CodeQueries;
+using CodeCiir.Application.Tests.Support;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -8,43 +10,40 @@ namespace CodeCiir.Application.Tests.CodeQueries;
 public sealed class CodeDocumentSourceServiceTests
 {
     private readonly ICodeDocumentsRepository _repository = Substitute.For<ICodeDocumentsRepository>();
-    private readonly CodeDocumentSourceService _sut;
+    private readonly Faker _faker = new();
 
-    public CodeDocumentSourceServiceTests()
-    {
-        _sut = new CodeDocumentSourceService(_repository);
-    }
+    private CodeDocumentSourceService Sut => new(_repository);
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task GetAsync_InvalidDocumentId_ReturnsInvalidFailureWithoutQueryingRepository(long documentId)
+    public async Task Should_ReturnInvalidIdFailureWithoutQueryingRepository_When_DocumentIdIsNotPositive(long documentId)
     {
-        var result = await _sut.GetAsync(documentId);
+        var result = await Sut.GetAsync(documentId);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-code-document-id-invalid");
+        result.ShouldBeFailure(CodeQueryFailures.CodeDocumentIdInvalid());
         await _repository.DidNotReceive().GetSourceAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task GetAsync_MissingDocument_ReturnsNotFoundFailure()
+    public async Task Should_ReturnNotFoundFailure_When_DocumentDoesNotExist()
     {
-        _repository.GetSourceAsync(42, Arg.Any<CancellationToken>()).Returns((CodeDocumentSource?)null);
+        var documentId = _faker.Random.Long(1, 1000);
+        _repository.GetSourceAsync(documentId, Arg.Any<CancellationToken>()).Returns((CodeDocumentSource?)null);
 
-        var result = await _sut.GetAsync(42);
+        var result = await Sut.GetAsync(documentId);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("404-code-document-not-found");
+        result.ShouldBeFailure(CodeQueryFailures.CodeDocumentNotFound(documentId));
     }
 
     [Fact]
-    public async Task GetAsync_ExistingDocument_ReturnsSourceIncludingNullRawUrl()
+    public async Task Should_ReturnSourceWithNullRawUrl_When_ProjectHasNoRawUrl()
     {
-        var source = new CodeDocumentSource(42, "src/Widget.cs", null);
-        _repository.GetSourceAsync(42, Arg.Any<CancellationToken>()).Returns(source);
+        var documentId = _faker.Random.Long(1, 1000);
+        var source = new CodeDocumentSource(documentId, _faker.System.FilePath(), null);
+        _repository.GetSourceAsync(documentId, Arg.Any<CancellationToken>()).Returns(source);
 
-        var result = await _sut.GetAsync(42);
+        var result = await Sut.GetAsync(documentId);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(source);

@@ -7,7 +7,7 @@ namespace CodeCiir.Api.Controllers;
 /// Reports the running API's own build version.
 /// </summary>
 [ApiController]
-[ApiExplorerSettings(GroupName = "Version")]
+[ApiExplorerSettings(GroupName = "version")]
 [Route("version")]
 public sealed class VersionController : ControllerBase
 {

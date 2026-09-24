@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
 
 namespace CodeCiir.Api.Authentication;
@@ -58,7 +57,7 @@ public static class KeycloakAuthenticationExtensions
                     ValidateAudience = options.Audience.Length > 0,
                     ValidAudience = options.Audience.Length > 0 ? options.Audience : null,
                 };
-                bearer.Events = new JwtBearerEvents { OnChallenge = WriteProblemDetailsAsync };
+                bearer.Events = new JwtBearerEvents { OnChallenge = RejectUnauthenticated, OnForbidden = RejectForbidden };
             });
 
         services.AddAuthorization(authorization =>
@@ -67,20 +66,40 @@ public static class KeycloakAuthenticationExtensions
         return services;
     }
 
-    // Replaces the handler's default body-less 401 with the same application/problem+json shape
-    // every other client error in this API uses. The detail is deliberately generic: it must not
-    // reveal why a token was rejected (signature, issuer, expiry, ...).
-    private static Task WriteProblemDetailsAsync(JwtBearerChallengeContext context)
+    // 401 carries no response body - the WWW-Authenticate header alone tells the client to send a
+    // Bearer token. Why a token was rejected (signature, issuer, expiry, ...) is deliberately never
+    // revealed to the client; it is only recorded in the application log.
+    private static Task RejectUnauthenticated(JwtBearerChallengeContext context)
     {
         context.HandleResponse();
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         context.Response.Headers.WWWAuthenticate = JwtBearerDefaults.AuthenticationScheme;
 
-        return Results.Problem(
-            type: $"https://httpstatuses.io/{StatusCodes.Status401Unauthorized}",
-            title: ReasonPhrases.GetReasonPhrase(StatusCodes.Status401Unauthorized),
-            detail: "A valid access token is required. Send it in the 'Authorization: Bearer <token>' header.",
-            statusCode: StatusCodes.Status401Unauthorized,
-            instance: context.Request.Path)
-            .ExecuteAsync(context.HttpContext);
+        GetLogger(context.HttpContext).LogInformation(
+            "Request {Method} {Path} rejected with 401: missing or invalid access token ({AuthenticationError})",
+            context.Request.Method,
+            context.Request.Path,
+            context.AuthenticateFailure?.GetType().Name ?? "no token");
+
+        return Task.CompletedTask;
     }
+
+    // 403 likewise carries no body; the authenticated caller is logged so a denied access can be
+    // traced back to whoever attempted it.
+    private static Task RejectForbidden(ForbiddenContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
+        GetLogger(context.HttpContext).LogWarning(
+            "Request {Method} {Path} forbidden for {Username}",
+            context.Request.Method,
+            context.Request.Path,
+            context.HttpContext.User.GetUsername());
+
+        return Task.CompletedTask;
+    }
+
+    private static ILogger GetLogger(HttpContext httpContext) => httpContext.RequestServices
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger(typeof(KeycloakAuthenticationExtensions).FullName!);
 }

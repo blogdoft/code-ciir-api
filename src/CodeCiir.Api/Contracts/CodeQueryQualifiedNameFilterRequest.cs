@@ -1,10 +1,11 @@
 using CodeCiir.Application.CodeQueries;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace CodeCiir.Api.Contracts;
 
 /// <summary>
-/// Optional filter narrowing results to code documents matching a <c>symbol_qualified_name</c>
+/// Optional filter narrowing results to code documents matching a <c>symbolQualifiedName</c>
 /// condition (the member's full name including its namespace/package or language equivalent).
 /// </summary>
 /// <param name="Operator">Comparison operator to apply.</param>
@@ -18,5 +19,7 @@ namespace CodeCiir.Api.Contracts;
 #pragma warning disable SA1313 // positional record parameter is also a public property - PascalCase is correct
 public sealed record CodeQueryQualifiedNameFilterRequest(
     [property: JsonRequired] QualifiedNameFilterOperator Operator,
-    [property: JsonRequired] string Value);
+    [property: JsonRequired]
+    [Required(AllowEmptyStrings = false, ErrorMessage = "The 'qualifiedName' filter's 'value' field is required and must not be empty or blank."),
+        StringLength(CodeQueryService.MaxFilterValueLength, ErrorMessage = "The 'qualifiedName' filter's 'value' field must not exceed {1} characters.")] string Value);
 #pragma warning restore SA1313

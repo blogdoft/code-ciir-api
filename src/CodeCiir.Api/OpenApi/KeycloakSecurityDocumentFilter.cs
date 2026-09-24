@@ -49,6 +49,16 @@ internal sealed class KeycloakSecurityDocumentFilter(KeycloakOptions options) : 
             [new OpenApiSecuritySchemeReference(BearerSchemeName, swaggerDoc)] = [],
         });
 
+        // Every REST operation in this document sits behind the authenticated-user fallback policy,
+        // so any of them can answer 401 (missing/invalid token) or 403 (authenticated but not
+        // allowed). Both carry no response body.
+        foreach (var operation in swaggerDoc.Paths.Values.SelectMany(path => path.Operations?.Values ?? Enumerable.Empty<OpenApiOperation>()))
+        {
+            operation.Responses ??= [];
+            operation.Responses.TryAdd("401", new OpenApiResponse { Description = "Missing, expired or invalid access token. No response body." });
+            operation.Responses.TryAdd("403", new OpenApiResponse { Description = "Authenticated, but not allowed to perform this operation. No response body." });
+        }
+
         if (options.ClientId.Length > 0)
         {
             var openIdConnect = $"{options.Authority.TrimEnd('/')}/protocol/openid-connect";

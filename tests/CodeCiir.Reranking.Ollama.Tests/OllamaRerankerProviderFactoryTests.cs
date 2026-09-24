@@ -8,33 +8,33 @@ namespace CodeCiir.Reranking.Ollama.Tests;
 public sealed class OllamaRerankerProviderFactoryTests
 {
     private readonly IHttpClientFactory _httpClientFactory = Substitute.For<IHttpClientFactory>();
-    private readonly OllamaRerankerProviderFactory _sut;
 
     public OllamaRerankerProviderFactoryTests()
     {
         _httpClientFactory.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient());
-        _sut = new OllamaRerankerProviderFactory(_httpClientFactory);
     }
 
+    private OllamaRerankerProviderFactory Sut => new(_httpClientFactory);
+
     [Fact]
-    public void ProviderName_IsOllama()
+    public void Should_ReportOllamaAsProviderName_When_Queried()
     {
-        _sut.ProviderName.ShouldBe("Ollama");
+        Sut.ProviderName.ShouldBe("Ollama");
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Create_MissingBaseUrl_Throws(string? baseUrl)
+    public void Should_ThrowInvalidOperationException_When_BaseUrlIsMissing(string? baseUrl)
     {
         var options = new RerankingOptions { Provider = "Ollama", Model = "qwen2.5:7b-instruct", BaseUrl = baseUrl };
 
-        Should.Throw<InvalidOperationException>(() => _sut.Create(options));
+        Should.Throw<InvalidOperationException>(() => Sut.Create(options));
     }
 
     [Fact]
-    public void Create_ValidOptions_ReturnsConfiguredReranker()
+    public void Should_ReturnRerankerConfiguredFromOptions_When_OptionsAreValid()
     {
         var options = new RerankingOptions
         {
@@ -45,7 +45,7 @@ public sealed class OllamaRerankerProviderFactoryTests
             MaxConcurrency = 4,
         };
 
-        var reranker = _sut.Create(options);
+        var reranker = Sut.Create(options);
 
         reranker.Provider.ShouldBe("Ollama");
         reranker.CandidatePoolSize.ShouldBe(30);

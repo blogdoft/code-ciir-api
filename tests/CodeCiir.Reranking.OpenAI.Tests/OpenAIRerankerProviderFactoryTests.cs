@@ -7,70 +7,72 @@ namespace CodeCiir.Reranking.OpenAI.Tests;
 
 public sealed class OpenAIRerankerProviderFactoryTests
 {
+    private const string Model = "gpt-4o-mini";
+
     private readonly IHttpClientFactory _httpClientFactory = Substitute.For<IHttpClientFactory>();
-    private readonly OpenAIRerankerProviderFactory _sut;
     private HttpClient? _createdClient;
 
     public OpenAIRerankerProviderFactoryTests()
     {
         _httpClientFactory.CreateClient(Arg.Any<string>()).Returns(_ => _createdClient = new HttpClient());
-        _sut = new OpenAIRerankerProviderFactory(_httpClientFactory);
     }
 
+    private OpenAIRerankerProviderFactory Sut => new(_httpClientFactory);
+
     [Fact]
-    public void ProviderName_IsOpenAI()
+    public void Should_ReportOpenAIAsProviderName_When_Queried()
     {
-        _sut.ProviderName.ShouldBe("OpenAI");
+        Sut.ProviderName.ShouldBe("OpenAI");
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Create_MissingModel_Throws(string? model)
+    public void Should_ThrowInvalidOperationException_When_ModelIsMissing(string? model)
     {
         var options = new RerankingOptions { Provider = "OpenAI", Model = model! };
 
-        Should.Throw<InvalidOperationException>(() => _sut.Create(options));
+        Should.Throw<InvalidOperationException>(() => Sut.Create(options));
     }
 
     [Fact]
-    public void Create_BaseUrlOmitted_DefaultsToOpenAiApi()
+    public void Should_DefaultToTheOpenAiApi_When_BaseUrlIsOmitted()
     {
-        var options = new RerankingOptions { Provider = "OpenAI", Model = "gpt-4o-mini" };
+        var options = new RerankingOptions { Provider = "OpenAI", Model = Model };
 
-        _sut.Create(options);
+        Sut.Create(options);
 
         _createdClient!.BaseAddress.ShouldBe(new Uri("https://api.openai.com/v1/"));
     }
 
     [Fact]
-    public void Create_ApiKeyProvided_SetsAuthorizationHeader()
+    public void Should_SetTheBearerAuthorizationHeader_When_ApiKeyIsProvided()
     {
-        var options = new RerankingOptions { Provider = "OpenAI", Model = "gpt-4o-mini", ApiKey = "sk-test" };
+        var options = new RerankingOptions { Provider = "OpenAI", Model = Model, ApiKey = "sk-test" };
 
-        _sut.Create(options);
+        Sut.Create(options);
 
         _createdClient!.DefaultRequestHeaders.Authorization.ShouldNotBeNull();
         _createdClient.DefaultRequestHeaders.Authorization.Parameter.ShouldBe("sk-test");
     }
 
     [Fact]
-    public void Create_ApiKeyOmitted_DoesNotSetAuthorizationHeader()
+    public void Should_NotSetAnAuthorizationHeader_When_ApiKeyIsOmitted()
     {
-        var options = new RerankingOptions { Provider = "OpenAI", Model = "gpt-4o-mini" };
+        var options = new RerankingOptions { Provider = "OpenAI", Model = Model };
 
-        _sut.Create(options);
+        Sut.Create(options);
 
         _createdClient!.DefaultRequestHeaders.Authorization.ShouldBeNull();
     }
 
     [Fact]
-    public void Create_ValidOptions_ReturnsConfiguredReranker()
+    public void Should_ReturnRerankerConfiguredFromOptions_When_OptionsAreValid()
     {
-        var options = new RerankingOptions { Provider = "OpenAI", Model = "gpt-4o-mini", CandidatePoolSize = 30 };
+        var options = new RerankingOptions { Provider = "OpenAI", Model = Model, CandidatePoolSize = 30 };
 
-        var reranker = _sut.Create(options);
+        var reranker = Sut.Create(options);
 
         reranker.Provider.ShouldBe("OpenAI");
         reranker.CandidatePoolSize.ShouldBe(30);

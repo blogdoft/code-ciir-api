@@ -36,10 +36,10 @@ operável pelo mesmo time com a mesma "forma mental":
   chamam a Application diretamente, espelhando o REST).
 - **Nunca roda migrations**: a API só lê/escreve nas tabelas que já existem; DDL local para
   dev fica em `db/init.sql`, nunca executado em produção pela própria API.
-- **Erros**: RFC 7807 Problem Details em tudo, exceto 404 (sem corpo). Falhas de domínio
+- **Erros**: RFC 7807 Problem Details nos `400`; `401`/`403`/`404`/`5xx` sem corpo (⚠️ correção em `15-skills-alignment.md`: antes valia "em tudo, exceto 404"). Falhas de domínio
   modeladas como `Failure` com `Code` prefixado pelo status HTTP (`"400-question-required"`,
   `"404-project-not-found"`, etc.), nunca exceções para fluxo de controle esperado.
-- **JSON**: sempre `snake_case`, `application/json` estrito (sem outros content-types).
+- **JSON**: sempre `camelCase`, `application/json` estrito (sem outros content-types). ⚠️ correção em `15-skills-alignment.md`: era `snake_case`.
 - **Testes**: unitários (NSubstitute/Bogus/Shouldly) na Application; integração real via
   Testcontainers (Postgres) na Infrastructure; `WebApplicationFactory` fim-a-fim na Api.
 - **Specs evolutivas**: toda mudança de contrato relevante ganha um arquivo em `.specs/`
@@ -88,6 +88,7 @@ documentos, 4429 relações, grau de saída médio 8.53 (máximo 48).
 | 11 | [`12-match-relations.md`](./12-match-relations.md) | `matches[].relations` — relações diretas (1 hop, ambas direções) de cada match, sempre completas, independente do truncamento do `graph` de 2 hops | Fase 4 | **Concluído** |
 | 12 | [`13-mcp-code-source.md`](./13-mcp-code-source.md) | Tool MCP para resolver o `id` de `query_project_code` em `source_file` (relativo à raiz) e `git_raw_url` (arquivo bruto) | Fase 6 | **Concluído** |
 | 13 | [`14-keycloak-auth.md`](./14-keycloak-auth.md) | Autenticação opcional via Keycloak (`Keycloak:Enabled`) para os controllers REST, espelhando `code-ciir-indexer` — `/mcp` fica permanentemente fora do escopo de autenticação, a pedido explícito do usuário | — | **Concluído** |
+| 14 | [`15-skills-alignment.md`](./15-skills-alignment.md) | Refactor para as skills `csharp-*`: contrato HTTP em `camelCase`, `401/403/5xx` sem corpo, tags kebab-case, observabilidade BlogDoFT, tipos `*Table`, testes `Should_X_When_Y` | Fases 1-13 | **Concluído** |
 
 Ordem de execução recomendada: **0 → 1 → 2 → 3 → 4** é o caminho crítico até satisfazer o
 pedido original (endpoint de code-queries com grafo). 5-7 podem ser paralelizados ou

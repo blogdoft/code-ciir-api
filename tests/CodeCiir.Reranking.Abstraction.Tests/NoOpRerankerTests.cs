@@ -1,3 +1,4 @@
+using Bogus;
 using Shouldly;
 using Xunit;
 
@@ -5,32 +6,30 @@ namespace CodeCiir.Reranking.Abstraction.Tests;
 
 public sealed class NoOpRerankerTests
 {
+    private static readonly Faker<RerankCandidate> CandidateFaker = new Faker<RerankCandidate>()
+        .CustomInstantiator(faker => new RerankCandidate(faker.Random.Long(1, 100_000), faker.Lorem.Sentence()));
+
+    private readonly NoOpReranker _sut = new();
+
     [Fact]
-    public async Task RerankAsync_ReturnsEveryCandidateUnscoredInOriginalOrder()
+    public async Task Should_ReturnEveryCandidateUnscoredInOriginalOrder_When_Reranking()
     {
-        var sut = new NoOpReranker();
-        var candidates = new[]
-        {
-            new RerankCandidate(1, "first"),
-            new RerankCandidate(2, "second"),
-            new RerankCandidate(3, "third"),
-        };
+        var candidates = CandidateFaker.Generate(3);
 
-        var result = await sut.RerankAsync("question", candidates);
+        var result = await _sut.RerankAsync("question", candidates);
 
-        result.Select(r => r.Id).ShouldBe([1, 2, 3]);
-        result.ShouldAllBe(r => r.Score == null);
+        result.Select(r => (r.Id, r.Score)).ShouldBe(candidates.Select(c => (c.Id, (double?)null)));
     }
 
     [Fact]
-    public void Provider_IsNone()
+    public void Should_ReportNoneAsProvider_When_Queried()
     {
-        new NoOpReranker().Provider.ShouldBe("None");
+        _sut.Provider.ShouldBe("None");
     }
 
     [Fact]
-    public void CandidatePoolSize_IsZero()
+    public void Should_ReportZeroCandidatePoolSize_When_Queried()
     {
-        new NoOpReranker().CandidatePoolSize.ShouldBe(0);
+        _sut.CandidatePoolSize.ShouldBe(0);
     }
 }

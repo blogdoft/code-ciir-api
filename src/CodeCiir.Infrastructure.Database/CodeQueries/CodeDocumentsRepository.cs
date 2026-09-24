@@ -25,7 +25,7 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         var command = new CommandDefinition(sql, new { DocumentId = documentId }, cancellationToken: cancellationToken);
-        var row = await connection.QuerySingleOrDefaultAsync<CodeDocumentSourceRow>(command);
+        var row = await connection.QuerySingleOrDefaultAsync<CodeDocumentSourceProjection>(command);
 
         return row?.ToSource();
     }
@@ -108,7 +108,7 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         var command = new CommandDefinition(sql, parameters, cancellationToken: cancellationToken);
 #pragma warning restore S2077
-        var rows = await connection.QueryAsync<CodeQueryResultRow>(command);
+        var rows = await connection.QueryAsync<CodeQueryResultProjection>(command);
 
         return rows.Select(r => r.ToResult());
     }
@@ -125,7 +125,7 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
     // public properties - the standard .NET convention is PascalCase, matching the "AS Id",
     // "AS Kind", ... aliases in the SQL above that Dapper binds them from.
 #pragma warning disable SA1313
-    private sealed record CodeQueryResultRow(
+    private sealed record CodeQueryResultProjection(
         long Id,
         string Kind,
         string? SymbolContainer,
@@ -153,7 +153,7 @@ public sealed class CodeDocumentsRepository(NpgsqlDataSource dataSource) : ICode
     }
 #pragma warning restore SA1313
 
-    private sealed record CodeDocumentSourceRow(long DocumentId, string? SourceFile, string? GitRawUrl)
+    private sealed record CodeDocumentSourceProjection(long DocumentId, string? SourceFile, string? GitRawUrl)
     {
         public CodeDocumentSource ToSource() => new(
             DocumentId,

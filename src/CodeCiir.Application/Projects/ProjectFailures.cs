@@ -22,7 +22,7 @@ public static class ProjectFailures
 
     public static Failure PageSizeInvalid(int maxPageSize) => new(
         "400-page-size-invalid",
-        $"The 'page_size' query parameter must be between 1 and {maxPageSize}.");
+        $"The 'pageSize' query parameter must be between 1 and {maxPageSize}.");
 
     public static Failure ProjectNotFound(long projectId) => new(
         "404-project-not-found",

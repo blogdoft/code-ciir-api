@@ -8,7 +8,7 @@ namespace CodeCiir.Api.Tests.Authentication;
 public sealed class KeycloakOptionsTests
 {
     [Fact]
-    public void FromConfiguration_NoKeycloakSection_ReturnsNull()
+    public void Should_ReturnNull_When_ThereIsNoKeycloakSection()
     {
         KeycloakOptions.FromConfiguration(Configure([])).ShouldBeNull();
     }
@@ -16,7 +16,7 @@ public sealed class KeycloakOptionsTests
     [Theory]
     [InlineData(null)]
     [InlineData("false")]
-    public void FromConfiguration_NotEnabled_ReturnsNullEvenWithTheRealmFullyConfigured(string? enabled)
+    public void Should_ReturnNullEvenWithTheRealmFullyConfigured_When_KeycloakIsNotEnabled(string? enabled)
     {
         var configuration = Configure(new()
         {
@@ -30,7 +30,7 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_NotEnabled_DoesNotValidateTheRestOfTheSection()
+    public void Should_NotValidateTheRestOfTheSection_When_KeycloakIsNotEnabled()
     {
         var configuration = Configure(new()
         {
@@ -45,7 +45,7 @@ public sealed class KeycloakOptionsTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void FromConfiguration_EnabledWithoutAuthority_Throws(string? authority)
+    public void Should_ThrowNamingTheAuthorityKey_When_EnabledWithoutAuthority(string? authority)
     {
         var configuration = Configure(new()
         {
@@ -61,7 +61,7 @@ public sealed class KeycloakOptionsTests
     [Theory]
     [InlineData("realms/blogdoft")]
     [InlineData("ftp://keycloak.example/realms/blogdoft")]
-    public void FromConfiguration_EnabledWithAuthorityNotAnAbsoluteHttpUrl_Throws(string authority)
+    public void Should_ThrowInvalidOperationException_When_AuthorityIsNotAnAbsoluteHttpUrl(string authority)
     {
         var configuration = Configure(new()
         {
@@ -73,7 +73,7 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_EnabledWithHttpAuthorityWhileRequiringHttpsMetadata_Throws()
+    public void Should_ThrowNamingRequireHttpsMetadata_When_HttpAuthorityIsUsedWhileHttpsMetadataIsRequired()
     {
         var configuration = Configure(new()
         {
@@ -87,7 +87,7 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_EnabledWithHttpAuthorityWithoutRequiringHttpsMetadata_ReturnsOptions()
+    public void Should_ReturnOptions_When_HttpAuthorityIsUsedWithoutRequiringHttpsMetadata()
     {
         var configuration = Configure(new()
         {
@@ -103,7 +103,7 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_EnabledWithFullConfiguration_ReturnsTrimmedOptions()
+    public void Should_ReturnTrimmedOptions_When_EnabledWithFullConfiguration()
     {
         var configuration = Configure(new()
         {
@@ -129,7 +129,7 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_EnabledWithoutSkipCertificateValidation_DefaultsToFalse()
+    public void Should_DefaultSkipCertificateValidationToFalse_When_ItIsNotConfigured()
     {
         var configuration = Configure(new()
         {
@@ -146,7 +146,7 @@ public sealed class KeycloakOptionsTests
     [Theory]
     [InlineData("realms/blogdoft")]
     [InlineData("ftp://keycloak.internal/realms/blogdoft/.well-known/openid-configuration")]
-    public void FromConfiguration_EnabledWithMetadataAddressNotAnAbsoluteHttpUrl_Throws(string metadataAddress)
+    public void Should_ThrowNamingTheMetadataAddressKey_When_MetadataAddressIsNotAnAbsoluteHttpUrl(string metadataAddress)
     {
         var configuration = Configure(new()
         {
@@ -161,7 +161,7 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_EnabledWithHttpMetadataAddressWhileRequiringHttpsMetadata_Throws()
+    public void Should_ThrowNamingBothKeys_When_HttpMetadataAddressIsUsedWhileHttpsMetadataIsRequired()
     {
         // Authority itself stays https here - it's the metadata address's own scheme that matters
         // once it's set, not Authority's.
@@ -179,7 +179,7 @@ public sealed class KeycloakOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_EnabledWithHttpMetadataAddressWithoutRequiringHttpsMetadata_ReturnsOptions()
+    public void Should_ReturnOptions_When_HttpMetadataAddressIsUsedWithoutRequiringHttpsMetadata()
     {
         var configuration = Configure(new()
         {

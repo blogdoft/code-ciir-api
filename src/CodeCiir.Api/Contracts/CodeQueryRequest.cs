@@ -1,3 +1,5 @@
+using CodeCiir.Application.CodeQueries;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace CodeCiir.Api.Contracts;
@@ -27,10 +29,12 @@ namespace CodeCiir.Api.Contracts;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 public sealed record CodeQueryRequest(
+    [Required(AllowEmptyStrings = false, ErrorMessage = "The 'question' field is required and must not be empty or blank."),
+        StringLength(CodeQueryService.MaxQuestionLength, ErrorMessage = "The 'question' field must not exceed {1} characters.")]
     string? Question,
-    long? ProjectId = null,
-    double? MinSimilarity = null,
-    string? Kind = null,
+    [Range(1, long.MaxValue, ErrorMessage = "The 'projectId' field must be a positive integer when provided.")] long? ProjectId = null,
+    [Range(0.0, 1.0, ErrorMessage = "The 'minSimilarity' field must be between 0.0 and 1.0.")] double? MinSimilarity = null,
+    [StringLength(CodeQueryService.MaxFilterValueLength, ErrorMessage = "The 'kind' field must not exceed {1} characters.")] string? Kind = null,
     CodeQueryQualifiedNameFilterRequest? QualifiedName = null,
     int? Limit = null);
 #pragma warning restore SA1313

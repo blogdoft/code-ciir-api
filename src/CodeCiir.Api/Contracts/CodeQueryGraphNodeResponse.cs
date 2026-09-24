@@ -1,3 +1,5 @@
+using CodeCiir.Application.CodeQueries;
+
 namespace CodeCiir.Api.Contracts;
 
 /// <summary>A code entity reached while expanding the relationship graph from a match.</summary>
@@ -10,5 +12,16 @@ public sealed record CodeQueryGraphNodeResponse(
     string? SymbolQualifiedName,
     string? SymbolCanonicalName,
     string? SourceFile,
-    int Depth);
+    int Depth)
+{
+    public static CodeQueryGraphNodeResponse From(GraphNode node) => new(
+        node.Id,
+        node.Kind,
+        node.SymbolContainer,
+        node.SymbolName,
+        node.SymbolQualifiedName,
+        node.SymbolCanonicalName,
+        node.SourceFile,
+        node.Depth);
+}
 #pragma warning restore SA1313

@@ -73,7 +73,9 @@ public sealed class FeedbackService(
             return ProjectFailures.ProjectNotFound(projectId);
         }
 
-        var feedback = await feedbackRepository.InsertAsync(projectId, question, useful.Value, similarities, reason, user, cancellationToken);
+        var feedback = await feedbackRepository.InsertAsync(
+            new NewFeedback(projectId, question, useful.Value, similarities, reason, user),
+            cancellationToken);
         return Result<FeedbackResult>.FromSuccess(feedback);
     }
 
@@ -83,7 +85,7 @@ public sealed class FeedbackService(
         long? projectId,
         CancellationToken cancellationToken = default)
     {
-        // Both given: start_date > end_date is only meaningful to reject when the caller
+        // Both given: startDate > endDate is only meaningful to reject when the caller
         // actually supplied both ends themselves - the default-window derivation below can never
         // produce an inverted range on its own.
         if (startDate is not null && endDate is not null && startDate > endDate)

@@ -1,3 +1,5 @@
+using CodeCiir.Application.Feedback;
+
 namespace CodeCiir.Api.Contracts;
 
 /// <summary>Feedback effectiveness statistics for a single project within a single week.</summary>
@@ -22,5 +24,15 @@ public sealed record ProjectFeedbackStatsResponse(
     long UsefulCount,
     long NotUsefulCount,
     double UsefulPercentage,
-    double NotUsefulPercentage);
+    double NotUsefulPercentage)
+{
+    public static ProjectFeedbackStatsResponse From(ProjectFeedbackStats project) => new(
+        project.ProjectId,
+        project.ProjectName,
+        project.TotalCount,
+        project.UsefulCount,
+        project.NotUsefulCount,
+        project.UsefulPercentage,
+        project.NotUsefulPercentage);
+}
 #pragma warning restore SA1313

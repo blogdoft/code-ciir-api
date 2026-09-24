@@ -4,9 +4,6 @@ namespace CodeCiir.Application.Feedback;
 
 public static class FeedbackFailures
 {
-    public static Failure ProjectIdRequired() => new(
-        "400-project-id-required", "The 'project_id' field is required and must be a positive integer.");
-
     public static Failure QuestionRequired() => new(
         "400-question-required", "The 'question' field is required and must not be empty or blank.");
 
@@ -33,7 +30,7 @@ public static class FeedbackFailures
         "400-reason-too-long", $"The 'reason' field must not exceed {maxLength} characters.");
 
     public static Failure InvalidDateRange() => new(
-        "400-invalid-date-range", "The 'start_date' must not be after 'end_date'.");
+        "400-invalid-date-range", "The 'startDate' must not be after 'endDate'.");
 
     public static Failure WindowTooLarge() => new(
         "400-window-too-large", "The requested time window must not exceed 366 days (12 months).");

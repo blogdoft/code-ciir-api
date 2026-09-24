@@ -80,7 +80,7 @@ public sealed class RelationshipGraphRepository(NpgsqlDataSource dataSource) : I
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         var command = new CommandDefinition(sql, new { ProjectId = projectId, Ids = ids }, cancellationToken: cancellationToken);
-        var rows = await connection.QueryAsync<EdgeRow>(command);
+        var rows = await connection.QueryAsync<GraphEdgeProjection>(command);
 
         var requestedIds = ids.ToHashSet();
 
@@ -93,7 +93,7 @@ public sealed class RelationshipGraphRepository(NpgsqlDataSource dataSource) : I
             .ToDictionary(group => group.Key, group => (IReadOnlyList<MatchRelation>)group.Select(pair => pair.Relation).ToList());
     }
 
-    private static IEnumerable<long> TouchedRequestedIds(EdgeRow row, HashSet<long> requestedIds)
+    private static IEnumerable<long> TouchedRequestedIds(GraphEdgeProjection row, HashSet<long> requestedIds)
     {
         if (row.FromId is { } fromId && requestedIds.Contains(fromId))
         {
@@ -185,7 +185,7 @@ public sealed class RelationshipGraphRepository(NpgsqlDataSource dataSource) : I
             """;
 
         var command = new CommandDefinition(sql, new { Ids = ids }, cancellationToken: cancellationToken);
-        var rows = await connection.QueryAsync<NodeRow>(command);
+        var rows = await connection.QueryAsync<GraphNodeProjection>(command);
         return rows.Select(r => r.ToNode(depthByNodeId[r.Id])).ToList();
     }
 
@@ -219,7 +219,7 @@ public sealed class RelationshipGraphRepository(NpgsqlDataSource dataSource) : I
             """;
 
         var command = new CommandDefinition(sql, new { ProjectId = projectId, Ids = ids }, cancellationToken: cancellationToken);
-        var rows = await connection.QueryAsync<EdgeRow>(command);
+        var rows = await connection.QueryAsync<GraphEdgeProjection>(command);
         return rows.Select(r => r.ToEdge(depthByNodeId)).ToList();
     }
 
@@ -227,7 +227,7 @@ public sealed class RelationshipGraphRepository(NpgsqlDataSource dataSource) : I
     // public properties - the standard .NET convention is PascalCase, matching the "AS Id",
     // "AS Kind", ... aliases in the SQL above that Dapper binds them from.
 #pragma warning disable SA1313
-    private sealed record NodeRow(
+    private sealed record GraphNodeProjection(
         long Id,
         string Kind,
         string? SymbolContainer,
@@ -239,7 +239,7 @@ public sealed class RelationshipGraphRepository(NpgsqlDataSource dataSource) : I
         public GraphNode ToNode(int depth) => new(Id, Kind, SymbolContainer, SymbolName, SymbolQualifiedName, SymbolCanonicalName, SourceFile, depth);
     }
 
-    private sealed record EdgeRow(long? FromId, long? ToId, string RelationType, string TargetSymbol, string ResolutionOrigin)
+    private sealed record GraphEdgeProjection(long? FromId, long? ToId, string RelationType, string TargetSymbol, string ResolutionOrigin)
     {
         public GraphEdge ToEdge(IReadOnlyDictionary<long, int> depthByNodeId)
         {

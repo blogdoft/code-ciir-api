@@ -1,3 +1,5 @@
+using CodeCiir.Application.CodeQueries;
+
 namespace CodeCiir.Api.Contracts;
 
 /// <summary>
@@ -9,5 +11,11 @@ namespace CodeCiir.Api.Contracts;
 public sealed record CodeQueryGraphResponse(
     IReadOnlyList<CodeQueryGraphNodeResponse> Nodes,
     IReadOnlyList<CodeQueryGraphEdgeResponse> Edges,
-    bool Truncated);
+    bool Truncated)
+{
+    public static CodeQueryGraphResponse From(CodeGraph graph) => new(
+        graph.Nodes.Select(CodeQueryGraphNodeResponse.From).ToList(),
+        graph.Edges.Select(CodeQueryGraphEdgeResponse.From).ToList(),
+        graph.Truncated);
+}
 #pragma warning restore SA1313

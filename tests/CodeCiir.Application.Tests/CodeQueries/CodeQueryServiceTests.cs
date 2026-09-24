@@ -1,5 +1,6 @@
 using CodeCiir.Application.CodeQueries;
 using CodeCiir.Application.Projects;
+using CodeCiir.Application.Tests.Support;
 using CodeCiir.Embeddings.Abstraction;
 using CodeCiir.Reranking.Abstraction;
 using Microsoft.Extensions.Options;
@@ -11,15 +12,7 @@ namespace CodeCiir.Application.Tests.CodeQueries;
 
 public sealed class CodeQueryServiceTests
 {
-    private static readonly Project TestProject = new(
-        1,
-        "proj",
-        "bge-m3",
-        1024,
-        new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
-        new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
-        DateTime.UtcNow,
-        DateTime.UtcNow);
+    private const string Question = "where is the retry logic?";
 
     private readonly IProjectsRepository _projectsRepository = Substitute.For<IProjectsRepository>();
     private readonly ICodeDocumentsRepository _codeDocumentsRepository = Substitute.For<ICodeDocumentsRepository>();
@@ -51,9 +44,7 @@ public sealed class CodeQueryServiceTests
         _reranker.RerankAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<RerankCandidate>>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => callInfo.Arg<IReadOnlyList<RerankCandidate>>().Select(c => new RerankedCandidate(c.Id, null)).ToList());
 
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([]);
+        GivenSearchReturns();
 
         _relationshipGraphRepository
             .GetGraphAsync(Arg.Any<long>(), Arg.Any<IReadOnlyList<long>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
@@ -66,146 +57,137 @@ public sealed class CodeQueryServiceTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task QueryAsync_MissingOrBlankQuestion_ReturnsQuestionRequired(string? question)
+    public async Task Should_ReturnQuestionRequiredFailure_When_QuestionIsMissingOrBlank(string? question)
     {
         var result = await _sut.QueryAsync(question, projectId: 1);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-question-required");
+        result.ShouldBeFailure(CodeQueryFailures.QuestionRequired());
         await _projectsRepository.DidNotReceive().GetByIdAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task QueryAsync_QuestionTooLong_ReturnsQuestionTooLong()
+    public async Task Should_ReturnQuestionTooLongFailure_When_QuestionExceedsMaximumLength()
     {
         var tooLong = new string('a', CodeQueryService.MaxQuestionLength + 1);
 
         var result = await _sut.QueryAsync(tooLong, projectId: 1);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-question-too-long");
+        result.ShouldBeFailure(CodeQueryFailures.QuestionTooLong(CodeQueryService.MaxQuestionLength));
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task QueryAsync_ProjectIdNotPositive_ReturnsProjectIdInvalid(long invalidProjectId)
+    public async Task Should_ReturnProjectIdInvalidFailure_When_ProjectIdIsNotPositive(long invalidProjectId)
     {
-        var result = await _sut.QueryAsync("question", invalidProjectId);
+        var result = await _sut.QueryAsync(Question, invalidProjectId);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-project-id-invalid");
+        result.ShouldBeFailure(CodeQueryFailures.ProjectIdInvalid());
         await _projectsRepository.DidNotReceive().GetByIdAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
     [InlineData(-0.1)]
     [InlineData(1.1)]
-    public async Task QueryAsync_MinSimilarityOutOfRange_ReturnsMinSimilarityOutOfRange(double invalidMinSimilarity)
+    public async Task Should_ReturnMinSimilarityOutOfRangeFailure_When_MinSimilarityIsOutsideZeroToOne(double invalidMinSimilarity)
     {
-        var result = await _sut.QueryAsync("question", minSimilarity: invalidMinSimilarity);
+        var result = await _sut.QueryAsync(Question, minSimilarity: invalidMinSimilarity);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-min-similarity-out-of-range");
+        result.ShouldBeFailure(CodeQueryFailures.MinSimilarityOutOfRange());
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task QueryAsync_BlankKind_ReturnsKindFilterValueRequired(string blankKind)
+    public async Task Should_ReturnKindFilterValueRequiredFailure_When_KindIsBlank(string blankKind)
     {
-        var result = await _sut.QueryAsync("question", kind: blankKind);
+        var result = await _sut.QueryAsync(Question, kind: blankKind);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-kind-filter-value-required");
+        result.ShouldBeFailure(CodeQueryFailures.KindFilterValueRequired());
     }
 
     [Fact]
-    public async Task QueryAsync_KindTooLong_ReturnsKindFilterValueTooLong()
+    public async Task Should_ReturnKindFilterValueTooLongFailure_When_KindExceedsMaximumLength()
     {
         var tooLong = new string('a', CodeQueryService.MaxFilterValueLength + 1);
 
-        var result = await _sut.QueryAsync("question", kind: tooLong);
+        var result = await _sut.QueryAsync(Question, kind: tooLong);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-kind-filter-value-too-long");
+        result.ShouldBeFailure(CodeQueryFailures.KindFilterValueTooLong(CodeQueryService.MaxFilterValueLength));
     }
 
     [Fact]
-    public async Task QueryAsync_QualifiedNameOperatorWithoutValue_ReturnsQualifiedNameFilterValueRequired()
+    public async Task Should_ReturnQualifiedNameFilterValueRequiredFailure_When_OperatorIsGivenWithoutValue()
     {
-        var result = await _sut.QueryAsync("question", qualifiedNameOperator: QualifiedNameFilterOperator.Equals, qualifiedNameValue: null);
+        var result = await _sut.QueryAsync(Question, qualifiedNameOperator: QualifiedNameFilterOperator.Equals, qualifiedNameValue: null);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-qualified-name-filter-value-required");
+        result.ShouldBeFailure(CodeQueryFailures.QualifiedNameFilterValueRequired());
     }
 
     [Fact]
-    public async Task QueryAsync_QualifiedNameValueTooLong_ReturnsQualifiedNameFilterValueTooLong()
+    public async Task Should_ReturnQualifiedNameFilterValueTooLongFailure_When_ValueExceedsMaximumLength()
     {
         var tooLong = new string('a', CodeQueryService.MaxFilterValueLength + 1);
 
-        var result = await _sut.QueryAsync("question", qualifiedNameOperator: QualifiedNameFilterOperator.Contains, qualifiedNameValue: tooLong);
+        var result = await _sut.QueryAsync(Question, qualifiedNameOperator: QualifiedNameFilterOperator.Contains, qualifiedNameValue: tooLong);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("400-qualified-name-filter-value-too-long");
+        result.ShouldBeFailure(CodeQueryFailures.QualifiedNameFilterValueTooLong(CodeQueryService.MaxFilterValueLength));
     }
 
     [Fact]
-    public async Task QueryAsync_ProjectIdGiven_MissingProject_ReturnsProjectNotFound()
+    public async Task Should_ReturnProjectNotFoundFailure_When_GivenProjectDoesNotExist()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns((Project?)null);
+        const long missingProjectId = 1;
+        _projectsRepository.GetByIdAsync(missingProjectId, Arg.Any<CancellationToken>()).Returns((Project?)null);
 
-        var result = await _sut.QueryAsync("where is the retry logic?", projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: missingProjectId);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Failure.Code.ShouldBe("404-project-not-found");
+        result.ShouldBeFailure(ProjectFailures.ProjectNotFound(missingProjectId));
     }
 
     [Fact]
-    public async Task QueryAsync_ProjectIdOmitted_SkipsProjectLookup()
+    public async Task Should_SkipProjectLookup_When_ProjectIdIsOmitted()
     {
-        var result = await _sut.QueryAsync("question");
+        var result = await _sut.QueryAsync(Question);
 
         result.IsSuccess.ShouldBeTrue();
         await _projectsRepository.DidNotReceive().GetByIdAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task QueryAsync_ValidQuestion_EmbedsWithConfiguredModelAndSearchesWithDefaultLimit()
+    public async Task Should_SearchWithDefaultLimitAndReturnMatches_When_QuestionIsValid()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(TestProject);
-        var searched = new[] { new CodeQueryResult(1, "method", null, "Foo", null, null, null, null, 0.9) };
-        var expected = new[] { searched[0] with { Relations = [] } };
+        GivenProjectExists(1);
+        var searched = CodeQueryResultFaker.Create();
         _codeDocumentsRepository
             .SearchAsync(Arg.Any<IReadOnlyList<float>>(), null, 1, null, null, null, CodeQueryService.DefaultLimit, Arg.Any<CancellationToken>())
-            .Returns(searched);
+            .Returns([searched]);
 
-        var result = await _sut.QueryAsync("where is the retry logic?", projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: 1);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Matches.ShouldBe(expected);
+        result.Value.Matches.ShouldBe([searched with { Relations = [] }]);
     }
 
     [Theory]
     [InlineData(0, 1)]
     [InlineData(-5, 1)]
     [InlineData(1000, CodeQueryService.MaxResultLimit)]
-    public async Task QueryAsync_LimitOutOfRange_IsClamped(int requestedLimit, int expectedEffectiveLimit)
+    public async Task Should_ClampSearchLimit_When_RequestedLimitIsOutOfRange(int requestedLimit, int expectedEffectiveLimit)
     {
-        await _sut.QueryAsync("question", limit: requestedLimit);
+        await _sut.QueryAsync(Question, limit: requestedLimit);
 
         await _codeDocumentsRepository.Received(1).SearchAsync(
             Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), expectedEffectiveLimit, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task QueryAsync_AllFiltersProvided_PassesThemToRepository()
+    public async Task Should_PassEveryFilterToRepository_When_AllFiltersAreProvided()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(TestProject);
+        GivenProjectExists(1);
 
         var result = await _sut.QueryAsync(
-            "question",
+            Question,
             projectId: 1,
             minSimilarity: 0.5,
             kind: "method",
@@ -219,105 +201,89 @@ public sealed class CodeQueryServiceTests
     }
 
     [Fact]
-    public async Task QueryAsync_RerankerRequestsLargerPool_WidensSearchLimit()
+    public async Task Should_WidenSearchLimit_When_RerankerRequestsLargerCandidatePool()
     {
         _reranker.CandidatePoolSize.Returns(25);
 
-        await _sut.QueryAsync("question", limit: 10);
+        await _sut.QueryAsync(Question, limit: 10);
 
         await _codeDocumentsRepository.Received(1).SearchAsync(
             Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), 25, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task QueryAsync_RerankerRequestsExcessivePoolSize_CapsAtMaxCandidatePoolSize()
+    public async Task Should_CapSearchLimitAtMaxCandidatePoolSize_When_RerankerRequestsExcessivePoolSize()
     {
         _reranker.CandidatePoolSize.Returns(10_000);
 
-        await _sut.QueryAsync("question", limit: 10);
+        await _sut.QueryAsync(Question, limit: 10);
 
         await _codeDocumentsRepository.Received(1).SearchAsync(
             Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), CodeQueryService.MaxCandidatePoolSize, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task QueryAsync_RerankerReordersCandidates_ResultsReflectRerankScoreDescending()
+    public async Task Should_OrderMatchesByRerankScoreDescending_When_RerankerReordersCandidates()
     {
-        var low = new CodeQueryResult(1, "method", null, "Low", null, null, null, "low", 0.95);
-        var high = new CodeQueryResult(2, "method", null, "High", null, null, null, "high", 0.10);
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([low, high]);
+        var lowRerank = CodeQueryResultFaker.Create() with { Id = 1, Similarity = 0.95 };
+        var highRerank = CodeQueryResultFaker.Create() with { Id = 2, Similarity = 0.10 };
+        GivenSearchReturns(lowRerank, highRerank);
         _reranker.RerankAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<RerankCandidate>>(), Arg.Any<CancellationToken>())
             .Returns([new RerankedCandidate(1, 0.1), new RerankedCandidate(2, 0.9)]);
 
-        var result = await _sut.QueryAsync("question");
+        var result = await _sut.QueryAsync(Question);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Matches.Select(m => m.Id).ShouldBe([2, 1]);
-        result.Value.Matches.Single(m => m.Id == 2).RerankScore.ShouldBe(0.9);
+        result.Value.Matches.Select(m => (m.Id, m.RerankScore)).ShouldBe([(2L, (double?)0.9), (1L, (double?)0.1)]);
     }
 
     [Fact]
-    public async Task QueryAsync_RerankerDisabled_RerankScoreIsNullAndSimilarityOrderIsKept()
+    public async Task Should_KeepSimilarityOrderWithNullRerankScore_When_RerankerIsDisabled()
     {
-        var first = new CodeQueryResult(1, "method", null, "First", null, null, null, "first", 0.95);
-        var second = new CodeQueryResult(2, "method", null, "Second", null, null, null, "second", 0.80);
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([first, second]);
+        var first = CodeQueryResultFaker.Create() with { Id = 1, Similarity = 0.95 };
+        var second = CodeQueryResultFaker.Create() with { Id = 2, Similarity = 0.80 };
+        GivenSearchReturns(first, second);
 
-        var result = await _sut.QueryAsync("question");
+        var result = await _sut.QueryAsync(Question);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Matches.Select(m => m.Id).ShouldBe([1, 2]);
-        result.Value.Matches.ShouldAllBe(m => m.RerankScore == null);
+        result.Value.Matches.Select(m => (m.Id, m.RerankScore)).ShouldBe([(1L, (double?)null), (2L, (double?)null)]);
     }
 
     [Fact]
-    public async Task QueryAsync_MoreCandidatesThanLimit_TruncatesAfterReranking()
+    public async Task Should_TruncateToLimitAfterReranking_When_ThereAreMoreCandidatesThanLimit()
     {
-        var candidates = Enumerable.Range(1, 5)
-            .Select(id => new CodeQueryResult(id, "method", null, $"M{id}", null, null, null, $"text{id}", 0.5))
-            .ToList();
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(candidates);
+        GivenSearchReturns([.. CodeQueryResultFaker.Create(5)]);
 
-        var result = await _sut.QueryAsync("question", limit: 2);
+        var result = await _sut.QueryAsync(Question, limit: 2);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Matches.Count.ShouldBe(2);
     }
 
     [Fact]
-    public async Task QueryAsync_MatchesFound_ProjectIdGiven_ExpandsGraphFromMatchIds()
+    public async Task Should_ExpandGraphFromMatchIds_When_MatchesAreFoundAndProjectIdIsGiven()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(TestProject);
-        var match = new CodeQueryResult(42, "method", null, "Foo", null, null, null, null, 0.9);
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), 1, Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([match]);
+        GivenProjectExists(1);
+        var match = CodeQueryResultFaker.Create() with { Id = 42 };
+        GivenSearchReturns(match);
         var expectedGraph = new CodeGraph([new GraphNode(7, "method", null, "Bar", null, null, null, 1)], [], false);
         _relationshipGraphRepository
             .GetGraphAsync(1, Arg.Is<IReadOnlyList<long>>(ids => ids.SequenceEqual(new long[] { 42 })), CodeQueryService.MaxGraphDepth, CodeQueryService.MaxGraphNodes, Arg.Any<CancellationToken>())
             .Returns(expectedGraph);
 
-        var result = await _sut.QueryAsync("question", projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: 1);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Graph.ShouldBe(expectedGraph);
     }
 
     [Fact]
-    public async Task QueryAsync_MatchesFound_ProjectIdOmitted_SkipsGraphExpansion()
+    public async Task Should_ReturnEmptyGraphWithoutExpanding_When_ProjectIdIsOmitted()
     {
-        var match = new CodeQueryResult(42, "method", null, "Foo", null, null, null, null, 0.9);
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), null, Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([match]);
+        GivenSearchReturns(CodeQueryResultFaker.Create());
 
-        var result = await _sut.QueryAsync("question");
+        var result = await _sut.QueryAsync(Question);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Graph.ShouldBe(CodeGraph.Empty);
@@ -326,11 +292,11 @@ public sealed class CodeQueryServiceTests
     }
 
     [Fact]
-    public async Task QueryAsync_NoMatches_SkipsGraphExpansion()
+    public async Task Should_ReturnEmptyGraphWithoutExpanding_When_NoMatchesAreFound()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(TestProject);
+        GivenProjectExists(1);
 
-        var result = await _sut.QueryAsync("question", projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: 1);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Graph.ShouldBe(CodeGraph.Empty);
@@ -339,51 +305,43 @@ public sealed class CodeQueryServiceTests
     }
 
     [Fact]
-    public async Task QueryAsync_MatchesFound_ProjectIdGiven_PopulatesRelationsFromRepository()
+    public async Task Should_PopulateMatchRelationsFromRepository_When_MatchesAreFoundAndProjectIdIsGiven()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(TestProject);
-        var match = new CodeQueryResult(42, "method", null, "Foo", null, null, null, null, 0.9);
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), 1, Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([match]);
+        GivenProjectExists(1);
+        var match = CodeQueryResultFaker.Create() with { Id = 42 };
+        GivenSearchReturns(match);
         var relation = new MatchRelation(42, 7, "calls", "Bar", "project");
         _relationshipGraphRepository
             .GetDirectRelationsAsync(1, Arg.Is<IReadOnlyList<long>>(ids => ids.SequenceEqual(new long[] { 42 })), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<long, IReadOnlyList<MatchRelation>> { [42] = [relation] });
 
-        var result = await _sut.QueryAsync("question", projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: 1);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Matches.Single().Relations.ShouldBe([relation]);
     }
 
     [Fact]
-    public async Task QueryAsync_MatchWithNoDirectRelations_RelationsIsEmptyArray()
+    public async Task Should_ReturnEmptyRelations_When_MatchHasNoDirectRelations()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(TestProject);
-        var match = new CodeQueryResult(42, "method", null, "Foo", null, null, null, null, 0.9);
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), 1, Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([match]);
+        GivenProjectExists(1);
+        GivenSearchReturns(CodeQueryResultFaker.Create());
         _relationshipGraphRepository
             .GetDirectRelationsAsync(1, Arg.Any<IReadOnlyList<long>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<long, IReadOnlyList<MatchRelation>>());
 
-        var result = await _sut.QueryAsync("question", projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: 1);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Matches.Single().Relations.ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task QueryAsync_MatchesFound_ProjectIdOmitted_RelationsAreEmptyAndRepositoryNotCalled()
+    public async Task Should_ReturnEmptyRelationsWithoutLookup_When_ProjectIdIsOmitted()
     {
-        var match = new CodeQueryResult(42, "method", null, "Foo", null, null, null, null, 0.9);
-        _codeDocumentsRepository
-            .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), null, Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([match]);
+        GivenSearchReturns(CodeQueryResultFaker.Create());
 
-        var result = await _sut.QueryAsync("question");
+        var result = await _sut.QueryAsync(Question);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Matches.Single().Relations.ShouldBeEmpty();
@@ -392,14 +350,22 @@ public sealed class CodeQueryServiceTests
     }
 
     [Fact]
-    public async Task QueryAsync_NoMatches_SkipsDirectRelationsLookup()
+    public async Task Should_SkipDirectRelationsLookup_When_NoMatchesAreFound()
     {
-        _projectsRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(TestProject);
+        GivenProjectExists(1);
 
-        var result = await _sut.QueryAsync("question", projectId: 1);
+        var result = await _sut.QueryAsync(Question, projectId: 1);
 
         result.IsSuccess.ShouldBeTrue();
         await _relationshipGraphRepository.DidNotReceive().GetDirectRelationsAsync(
             Arg.Any<long>(), Arg.Any<IReadOnlyList<long>>(), Arg.Any<CancellationToken>());
     }
+
+    private void GivenProjectExists(long projectId) => _projectsRepository
+        .GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+        .Returns(ProjectFaker.Create() with { Id = projectId });
+
+    private void GivenSearchReturns(params CodeQueryResult[] results) => _codeDocumentsRepository
+        .SearchAsync(Arg.Any<IReadOnlyList<float>>(), Arg.Any<double?>(), Arg.Any<long?>(), Arg.Any<string?>(), Arg.Any<QualifiedNameFilterOperator?>(), Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        .Returns(results);
 }

@@ -44,10 +44,10 @@ public sealed class ProjectsRepository(NpgsqlDataSource dataSource) : IProjectsR
         var countCommand = new CommandDefinition(querySize.ToString(), new { NameFilter = nameFilter }, cancellationToken: cancellationToken);
 #pragma warning restore S2077
 
-        var rows = await connection.QueryAsync<ProjectRow>(itemsCommand);
+        var rows = await connection.QueryAsync<ProjectTable>(itemsCommand);
         var totalCount = await connection.ExecuteScalarAsync<long>(countCommand);
 
-        return (rows.Select(r => r.ToProject()).ToList(), totalCount);
+        return (rows.Select(r => r.ToDomain()).ToList(), totalCount);
     }
 
     public async Task<Project?> GetByIdAsync(long projectId, CancellationToken cancellationToken = default)
@@ -59,36 +59,7 @@ public sealed class ProjectsRepository(NpgsqlDataSource dataSource) : IProjectsR
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         var command = new CommandDefinition(sql, new { ProjectId = projectId }, cancellationToken: cancellationToken);
-        var row = await connection.QuerySingleOrDefaultAsync<ProjectRow>(command);
-        return row?.ToProject();
+        var row = await connection.QuerySingleOrDefaultAsync<ProjectTable>(command);
+        return row?.ToDomain();
     }
-
-    // SA1313 wants these lower-case, but positional record parameters are also the record's
-    // public properties - the standard .NET convention is PascalCase, matching the "AS Id",
-    // "AS Name", ... aliases in the SQL above that Dapper binds them from.
-#pragma warning disable SA1313
-    private sealed record ProjectRow(
-        long Id,
-        string Name,
-        string EmbeddingModel,
-        int EmbeddingDimensions,
-        string? GitUrl,
-        string? GitRawUrl,
-        DateTime CreatedAt,
-        DateTime UpdatedAt)
-    {
-        // projects.created_at/updated_at are stored as timestamptz (always UTC); Npgsql returns
-        // them with Kind=Unspecified, so it must be stamped explicitly to serialize with a "Z"
-        // suffix.
-        public Project ToProject() => new(
-            Id,
-            Name,
-            EmbeddingModel,
-            EmbeddingDimensions,
-            GitUrl is null ? null : new Uri(GitUrl),
-            GitRawUrl is null ? null : new Uri(GitRawUrl),
-            DateTime.SpecifyKind(CreatedAt, DateTimeKind.Utc),
-            DateTime.SpecifyKind(UpdatedAt, DateTimeKind.Utc));
-    }
-#pragma warning restore SA1313
 }

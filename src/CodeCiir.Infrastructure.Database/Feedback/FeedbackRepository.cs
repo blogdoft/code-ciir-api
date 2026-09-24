@@ -7,36 +7,25 @@ namespace CodeCiir.Infrastructure.Database.Feedback;
 
 public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackRepository
 {
-    public async Task<FeedbackResult> InsertAsync(
-        long projectId,
-        string question,
-        bool useful,
-        IReadOnlyList<double> similarities,
-        string? reason,
-        string user,
-        CancellationToken cancellationToken = default)
+    public async Task<FeedbackResult> InsertAsync(NewFeedback feedback, CancellationToken cancellationToken = default)
     {
         const string sql = """
             INSERT INTO public.code_query_feedback (project_id, question, useful, similarities, reason, username)
             VALUES (@ProjectId, @Question, @Useful, @Similarities, @Reason, @User)
-            RETURNING id AS Id, project_id AS ProjectId, question AS Question, useful AS Useful,
-                      similarities AS Similarities, reason AS Reason, username AS User, created_at AS CreatedAt
+            RETURNING id AS Id
+                    , project_id AS ProjectId
+                    , question AS Question
+                    , useful AS Useful
+                    , similarities AS Similarities
+                    , reason AS Reason
+                    , username AS User
+                    , created_at AS CreatedAt
             """;
 
-        var parameters = new
-        {
-            ProjectId = projectId,
-            Question = question,
-            Useful = useful,
-            Similarities = similarities.ToArray(),
-            Reason = reason,
-            User = user,
-        };
-
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        var command = new CommandDefinition(sql, parameters, cancellationToken: cancellationToken);
-        var row = await connection.QuerySingleAsync<FeedbackRow>(command);
-        return row.ToResult();
+        var command = new CommandDefinition(sql, CodeQueryFeedbackTable.FromDomain(feedback), cancellationToken: cancellationToken);
+        var row = await connection.QuerySingleAsync<CodeQueryFeedbackTable>(command);
+        return row.ToDomain();
     }
 
     public async Task<IReadOnlyList<WeeklyFeedbackStats>> GetStatsAsync(
@@ -92,7 +81,7 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
             new { StartDate = startDate, EndDate = endDate, ProjectId = projectId },
             cancellationToken: cancellationToken);
 #pragma warning restore S2077
-        var rows = await connection.QueryAsync<StatsRow>(command);
+        var rows = await connection.QueryAsync<FeedbackStatsProjection>(command);
 
         // GroupBy preserves source order (per SQL's ORDER BY) both across groups and within each
         // group, so no explicit re-sort is needed here.
@@ -148,7 +137,7 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
             new { StartDate = startDate, EndDate = endDate, ProjectId = projectId },
             cancellationToken: cancellationToken);
 #pragma warning restore S2077
-        var rows = await connection.QueryAsync<ExportRow>(command);
+        var rows = await connection.QueryAsync<FeedbackExportProjection>(command);
         return rows.Select(row => row.ToFeedbackExportRow()).ToList();
     }
 
@@ -160,40 +149,9 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
     /// actual runtime value is a real double array. Property-based mapping has no such
     /// requirement.
     /// </summary>
+    // Same double[] mapping quirk as CodeQueryFeedbackTable - property-setter POCO, not a positional record.
 #pragma warning disable S3459, S1144
-    private sealed class FeedbackRow
-    {
-        public long Id { get; set; }
-
-        public long ProjectId { get; set; }
-
-        public string Question { get; set; } = string.Empty;
-
-        public bool Useful { get; set; }
-
-        public double[] Similarities { get; set; } = [];
-
-        public string? Reason { get; set; }
-
-        public string User { get; set; } = string.Empty;
-
-        public DateTime CreatedAt { get; set; }
-
-        public FeedbackResult ToResult() => new(
-            Id,
-            ProjectId,
-            Question,
-            Useful,
-            Similarities,
-            Reason,
-            User,
-            DateTime.SpecifyKind(CreatedAt, DateTimeKind.Utc));
-    }
-#pragma warning restore S3459, S1144
-
-    // Same double[] mapping quirk as FeedbackRow above - property-setter POCO, not a positional record.
-#pragma warning disable S3459, S1144
-    private sealed class ExportRow
+    private sealed class FeedbackExportProjection
     {
         public long Id { get; set; }
 
@@ -218,12 +176,12 @@ public sealed class FeedbackRepository(NpgsqlDataSource dataSource) : IFeedbackR
     }
 #pragma warning restore S3459, S1144
 
-    // Positional record is safe here (unlike FeedbackRow/ExportRow above): every column is a
+    // Positional record is safe here (unlike FeedbackExportProjection above): every column is a
     // scalar type (timestamptz, int8, text, bigint) whose reader.GetFieldType(i) matches the
     // constructor parameter type exactly, so Dapper's constructor-matching fast path applies
     // without issue.
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
-    private sealed record StatsRow(
+    private sealed record FeedbackStatsProjection(
         DateTime WeekStart,
         long ProjectId,
         string ProjectName,

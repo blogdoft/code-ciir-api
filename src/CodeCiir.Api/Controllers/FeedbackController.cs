@@ -1,18 +1,15 @@
 using BlogDoFT.Libs.ResultPattern;
 using CodeCiir.Api.Contracts;
+using CodeCiir.Api.Csv;
 using CodeCiir.Api.Problems;
 using CodeCiir.Application.Feedback;
-using CsvHelper;
-using CsvHelper.Configuration.Attributes;
 using Microsoft.AspNetCore.Mvc;
-using System.Globalization;
-using System.Text.Json;
 
 namespace CodeCiir.Api.Controllers;
 
 /// <summary>Reporting operations over previously submitted code-query feedback.</summary>
 [ApiController]
-[ApiExplorerSettings(GroupName = "Code Query")]
+[ApiExplorerSettings(GroupName = "code-queries")]
 [Route("api/code-queries/feedback")]
 public sealed class FeedbackController(IFeedbackService feedbackService) : ControllerBase
 {
@@ -51,8 +48,8 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     /// <response code="200">
     /// Feedback statistics for the requested time window, as a dense grid of every week
     /// overlapping the window, each containing every registered project (or a single project when
-    /// projectId was given), with zero-filled entries where there was no feedback. start_date/
-    /// end_date in the response body reflect the effective window actually used, including when
+    /// projectId was given), with zero-filled entries where there was no feedback. startDate/
+    /// endDate in the response body reflect the effective window actually used, including when
     /// derived by default.
     /// </response>
     /// <response code="400">
@@ -72,11 +69,11 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     [ProducesResponseType<CodeQueryFeedbackStatsResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ServerErrorProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetStatsAsync(
-        [FromQuery(Name = "start_date")] DateTimeOffset? startDate,
-        [FromQuery(Name = "end_date")] DateTimeOffset? endDate,
-        [FromQuery(Name = "project_id")] long? projectId,
+        [FromQuery(Name = "startDate")] DateTimeOffset? startDate,
+        [FromQuery(Name = "endDate")] DateTimeOffset? endDate,
+        [FromQuery(Name = "projectId")] long? projectId,
         CancellationToken cancellationToken)
     {
         var result = await feedbackService.GetStatsAsync(
@@ -86,7 +83,7 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
             cancellationToken);
 
         return result.Map(
-            onSuccess: stats => (IActionResult)Ok(ToResponse(stats)),
+            onSuccess: stats => (IActionResult)Ok(CodeQueryFeedbackStatsResponse.From(stats)),
             onFailure: failure => failure.ToActionResult(HttpContext));
     }
 
@@ -147,11 +144,11 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, "text/csv")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ServerErrorProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> ExportAsync(
-        [FromQuery(Name = "start_date")] DateTimeOffset? startDate,
-        [FromQuery(Name = "end_date")] DateTimeOffset? endDate,
-        [FromQuery(Name = "project_id")] long? projectId,
+        [FromQuery(Name = "startDate")] DateTimeOffset? startDate,
+        [FromQuery(Name = "endDate")] DateTimeOffset? endDate,
+        [FromQuery(Name = "projectId")] long? projectId,
         [FromQuery(Name = "timezone")] string? timezone,
         CancellationToken cancellationToken)
     {
@@ -168,84 +165,7 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
             cancellationToken);
 
         return result.Map(
-            onSuccess: export => (IActionResult)File(ToCsvBytes(export.Rows, tz), "text/csv", ToFileName(export, projectId)),
+            onSuccess: export => (IActionResult)File(FeedbackCsvExporter.ToCsvBytes(export.Rows, tz), "text/csv", FeedbackCsvExporter.ToFileName(export, projectId)),
             onFailure: failure => failure.ToActionResult(HttpContext));
     }
-
-    private static byte[] ToCsvBytes(IReadOnlyList<FeedbackExportRow> rows, TimeZoneInfo? timezone)
-    {
-        using var memoryStream = new MemoryStream();
-        using (var streamWriter = new StreamWriter(memoryStream, leaveOpen: true))
-        using (var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture))
-        {
-            csvWriter.WriteRecords(rows.Select(row => ToCsvRecord(row, timezone)));
-        }
-
-        return memoryStream.ToArray();
-    }
-
-    private static FeedbackExportCsvRecord ToCsvRecord(FeedbackExportRow row, TimeZoneInfo? timezone) => new(
-        row.Id,
-        row.ProjectId,
-        row.ProjectName,
-        row.Question,
-        row.Useful,
-        JsonSerializer.Serialize(row.Similarities),
-        row.Reason,
-        row.Username,
-        FormatCreatedAt(row.CreatedAt, timezone));
-
-    // Default (no timezone given): "Z"-suffixed UTC, matching the API's JSON contract elsewhere.
-    // With a timezone: converted to that zone's local wall-clock, with an explicit numeric offset
-    // ("zzz") instead of "Z" - the offset can differ per row's date for zones with DST.
-    private static string FormatCreatedAt(DateTime createdAtUtc, TimeZoneInfo? timezone)
-    {
-        var utcOffset = new DateTimeOffset(createdAtUtc, TimeSpan.Zero);
-        return timezone is null
-            ? utcOffset.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)
-            : TimeZoneInfo.ConvertTime(utcOffset, timezone).ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
-    }
-
-    private static string ToFileName(FeedbackExportResult export, long? projectId)
-    {
-        var projectSuffix = projectId is null ? string.Empty : $"_project-{projectId}";
-        return $"feedback_export_{export.StartDate:yyyyMMdd}_{export.EndDate:yyyyMMdd}{projectSuffix}.csv";
-    }
-
-    private static CodeQueryFeedbackStatsResponse ToResponse(FeedbackStatsResult result) => new(
-        result.StartDate,
-        result.EndDate,
-        result.Weeks.Select(ToResponse).ToList());
-
-    private static WeeklyFeedbackStatsResponse ToResponse(WeeklyFeedbackStats week) => new(
-        week.WeekStart,
-        week.WeekEnd,
-        week.Projects.Select(ToResponse).ToList());
-
-    private static ProjectFeedbackStatsResponse ToResponse(ProjectFeedbackStats project) => new(
-        project.ProjectId,
-        project.ProjectName,
-        project.TotalCount,
-        project.UsefulCount,
-        project.NotUsefulCount,
-        project.UsefulPercentage,
-        project.NotUsefulPercentage);
-
-    // SA1313 wants these lower-case, but positional record parameters are also the record's
-    // public properties. Column order and snake_case names match the documented CSV contract.
-    // created_at is a pre-formatted string (not a typed DateTime with a static CsvHelper
-    // [Format]) because its format depends on the optional timezone query parameter at request
-    // time, not on a fixed attribute.
-#pragma warning disable SA1313
-    private sealed record FeedbackExportCsvRecord(
-        [property: Name("id")] long Id,
-        [property: Name("project_id")] long ProjectId,
-        [property: Name("project_name")] string ProjectName,
-        [property: Name("question")] string Question,
-        [property: Name("useful")] bool Useful,
-        [property: Name("similarities")] string Similarities,
-        [property: Name("reason")] string? Reason,
-        [property: Name("username")] string Username,
-        [property: Name("created_at")] string CreatedAt);
-#pragma warning restore SA1313
 }

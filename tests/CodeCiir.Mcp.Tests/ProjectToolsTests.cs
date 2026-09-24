@@ -1,5 +1,7 @@
 using BlogDoFT.Libs.ResultPattern;
+using Bogus;
 using CodeCiir.Application.Projects;
+using CodeCiir.Mcp.Tests.Support;
 using CodeCiir.Mcp.Tools;
 using ModelContextProtocol;
 using NSubstitute;
@@ -11,53 +13,43 @@ namespace CodeCiir.Mcp.Tests;
 public sealed class ProjectToolsTests
 {
     private readonly IProjectsService _projectsService = Substitute.For<IProjectsService>();
-    private readonly ProjectTools _sut;
+    private readonly Faker _faker = new();
 
-    public ProjectToolsTests()
-    {
-        _sut = new ProjectTools(_projectsService);
-    }
+    private ProjectTools Sut => new(_projectsService);
 
     [Fact]
-    public async Task ListProjectsAsync_PassesNameFilterThrough()
+    public async Task Should_PassNameFilterThroughAndMapProjects_When_ServiceSucceeds()
     {
-        var project = new Project(
-            1,
-            "proj",
-            "bge-m3",
-            1024,
-            new Uri("https://forgejo.home.arpa/sauron/code-ciir-api"),
-            new Uri("https://forgejo.home.arpa/sauron/code-ciir-api/raw/branch/main/"),
-            DateTime.UtcNow,
-            DateTime.UtcNow);
-        _projectsService.ListAsync("proj", null, null, Arg.Any<CancellationToken>())
+        var project = ProjectFaker.Create();
+        _projectsService.ListAsync(project.Name, null, null, Arg.Any<CancellationToken>())
             .Returns(Result<ProjectPage>.FromSuccess(new ProjectPage([project], 0, 20, 1, 1)));
 
-        var result = await _sut.ListProjectsAsync("proj");
+        var result = await Sut.ListProjectsAsync(project.Name);
 
-        result.ShouldHaveSingleItem();
-        result[0].Id.ShouldBe(1);
-        result[0].Name.ShouldBe("proj");
+        result.Select(p => (p.Id, p.Name)).ShouldBe([(project.Id, project.Name)]);
     }
 
     [Fact]
-    public async Task ListProjectsAsync_PassesPageAndPageSizeThrough()
+    public async Task Should_PassPageAndPageSizeThrough_When_BothAreGiven()
     {
         _projectsService.ListAsync(null, 2, 5, Arg.Any<CancellationToken>())
             .Returns(Result<ProjectPage>.FromSuccess(new ProjectPage([], 2, 5, 0, 0)));
 
-        var result = await _sut.ListProjectsAsync(page: 2, pageSize: 5);
+        var result = await Sut.ListProjectsAsync(page: 2, pageSize: 5);
 
         result.ShouldBeEmpty();
         await _projectsService.Received(1).ListAsync(null, 2, 5, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ListProjectsAsync_FailureResult_ThrowsMcpException()
+    public async Task Should_ThrowMcpExceptionWithTheFailureMessage_When_ServiceFails()
     {
+        var failure = ProjectFailures.NameFilterTooLong(ProjectsService.MaxNameFilterLength);
         _projectsService.ListAsync(Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
-            .Returns(Result<ProjectPage>.FromFailure(ProjectFailures.NameFilterTooLong(200)));
+            .Returns(Result<ProjectPage>.FromFailure(failure));
 
-        await Should.ThrowAsync<McpException>(() => _sut.ListProjectsAsync(new string('a', 201)));
+        var exception = await Should.ThrowAsync<McpException>(() => Sut.ListProjectsAsync(_faker.Random.String2(ProjectsService.MaxNameFilterLength + 1)));
+
+        exception.Message.ShouldContain(failure.Message);
     }
 }

@@ -1,3 +1,4 @@
+using Bogus;
 using CodeCiir.Reranking.Abstraction;
 using Shouldly;
 using System.Net;
@@ -7,94 +8,92 @@ namespace CodeCiir.Reranking.Ollama.Tests;
 
 public sealed class OllamaRerankerTests
 {
+    private const string Model = "qwen2.5:7b-instruct";
+
+    private static readonly Faker<RerankCandidate> CandidateFaker = new Faker<RerankCandidate>()
+        .CustomInstantiator(faker => new RerankCandidate(faker.Random.Long(1, 100_000), faker.Lorem.Sentence()));
+
     [Fact]
-    public async Task RerankAsync_SuccessfulResponse_ReturnsNormalizedScore()
+    public async Task Should_ReturnNormalizedScore_When_ResponseIsSuccessful()
     {
-        var handler = new FakeHttpMessageHandler(_ => JsonResponse("""{"response":"{\"score\": 70000}"}"""));
-        var sut = CreateSut(handler);
+        var candidate = CandidateFaker.Generate();
+        var sut = CreateSut(new FakeHttpMessageHandler(_ => JsonResponse("""{"response":"{\"score\": 70000}"}""")));
 
-        var result = await sut.RerankAsync("question", [new RerankCandidate(1, "some code")]);
+        var result = await sut.RerankAsync("question", [candidate]);
 
-        result.ShouldHaveSingleItem();
-        result[0].Id.ShouldBe(1);
-        result[0].Score.ShouldBe(0.7);
+        result.Select(r => (r.Id, r.Score)).ShouldBe([(candidate.Id, (double?)0.7)]);
     }
 
     [Fact]
-    public async Task RerankAsync_SuccessfulResponse_ScoreHasFiveDecimalDigitsOfResolution()
+    public async Task Should_KeepFiveDecimalDigitsOfResolution_When_ScoreIsNormalized()
     {
-        var handler = new FakeHttpMessageHandler(_ => JsonResponse("""{"response":"{\"score\": 12345}"}"""));
-        var sut = CreateSut(handler);
+        var sut = CreateSut(new FakeHttpMessageHandler(_ => JsonResponse("""{"response":"{\"score\": 12345}"}""")));
 
-        var result = await sut.RerankAsync("question", [new RerankCandidate(1, "some code")]);
+        var result = await sut.RerankAsync("question", [CandidateFaker.Generate()]);
 
-        result[0].Score.ShouldBe(0.12345);
+        result.Single().Score.ShouldBe(0.12345);
     }
 
     [Fact]
-    public async Task RerankAsync_MultipleCandidates_PreservesInputOrder()
+    public async Task Should_PreserveInputOrder_When_ThereAreMultipleCandidates()
     {
         var scores = new Queue<string>(["30000", "90000", "10000"]);
-        var handler = new FakeHttpMessageHandler(_ => JsonResponse($$"""{"response":"{\"score\": {{scores.Dequeue()}}}"}"""));
-        var sut = CreateSut(handler);
-        var candidates = new[] { new RerankCandidate(1, "a"), new RerankCandidate(2, "b"), new RerankCandidate(3, "c") };
+        var sut = CreateSut(new FakeHttpMessageHandler(_ => JsonResponse($$"""{"response":"{\"score\": {{scores.Dequeue()}}}"}""")));
+        var candidates = CandidateFaker.Generate(3);
 
         var result = await sut.RerankAsync("question", candidates);
 
-        result.Select(r => r.Id).ShouldBe([1, 2, 3]);
+        result.Select(r => r.Id).ShouldBe(candidates.Select(c => c.Id));
     }
 
     [Fact]
-    public async Task RerankAsync_SendsModelAndQuestionAndCandidateText()
+    public async Task Should_SendModelQuestionAndCandidateText_When_Reranking()
     {
         var handler = new FakeHttpMessageHandler(_ => JsonResponse("""{"response":"{\"score\": 5}"}"""));
-        var sut = new OllamaReranker(new HttpClient(handler) { BaseAddress = new Uri("http://fake/") }, "qwen2.5:7b-instruct", 25, 6);
+        var sut = CreateSut(handler);
 
         await sut.RerankAsync("where is the retry logic?", [new RerankCandidate(1, "public void Retry() {}")]);
 
         handler.LastRequestBody.ShouldNotBeNull();
-        handler.LastRequestBody.ShouldContain("qwen2.5:7b-instruct");
+        handler.LastRequestBody.ShouldContain(Model);
         handler.LastRequestBody.ShouldContain("where is the retry logic?");
         handler.LastRequestBody.ShouldContain("public void Retry() {}");
     }
 
     [Fact]
-    public async Task RerankAsync_ServerError_ThrowsRerankingException()
+    public async Task Should_ThrowRerankingException_When_ServerReturnsAnError()
     {
-        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
-        var sut = CreateSut(handler);
+        var sut = CreateSut(new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)));
 
-        await Should.ThrowAsync<RerankingException>(() => sut.RerankAsync("question", [new RerankCandidate(1, "code")]));
+        await Should.ThrowAsync<RerankingException>(() => sut.RerankAsync("question", [CandidateFaker.Generate()]));
     }
 
     [Fact]
-    public async Task RerankAsync_ResponseHasNoScorePayload_ThrowsRerankingException()
+    public async Task Should_ThrowRerankingException_When_ResponseHasNoScorePayload()
     {
-        var handler = new FakeHttpMessageHandler(_ => JsonResponse("""{"response":"not json at all"}"""));
-        var sut = CreateSut(handler);
+        var sut = CreateSut(new FakeHttpMessageHandler(_ => JsonResponse("""{"response":"not json at all"}""")));
 
-        await Should.ThrowAsync<RerankingException>(() => sut.RerankAsync("question", [new RerankCandidate(1, "code")]));
+        await Should.ThrowAsync<RerankingException>(() => sut.RerankAsync("question", [CandidateFaker.Generate()]));
     }
 
     [Fact]
-    public async Task RerankAsync_MalformedTopLevelJson_ThrowsRerankingException()
+    public async Task Should_ThrowRerankingException_When_TopLevelJsonIsMalformed()
     {
-        var handler = new FakeHttpMessageHandler(_ => JsonResponse("not json"));
-        var sut = CreateSut(handler);
+        var sut = CreateSut(new FakeHttpMessageHandler(_ => JsonResponse("not json")));
 
-        await Should.ThrowAsync<RerankingException>(() => sut.RerankAsync("question", [new RerankCandidate(1, "code")]));
+        await Should.ThrowAsync<RerankingException>(() => sut.RerankAsync("question", [CandidateFaker.Generate()]));
     }
 
     [Fact]
-    public void CandidatePoolSize_ReportsConfiguredValue()
+    public void Should_ReportConfiguredCandidatePoolSize_When_Queried()
     {
-        var sut = new OllamaReranker(new HttpClient(new FakeHttpMessageHandler(_ => JsonResponse("{}"))) { BaseAddress = new Uri("http://fake/") }, "model", 42, 6);
+        var sut = CreateSut(new FakeHttpMessageHandler(_ => JsonResponse("{}")), candidatePoolSize: 42);
 
         sut.CandidatePoolSize.ShouldBe(42);
     }
 
-    private static OllamaReranker CreateSut(FakeHttpMessageHandler handler) =>
-        new(new HttpClient(handler) { BaseAddress = new Uri("http://fake/") }, "qwen2.5:7b-instruct", 25, 6);
+    private static OllamaReranker CreateSut(FakeHttpMessageHandler handler, int candidatePoolSize = 25) =>
+        new(new HttpClient(handler) { BaseAddress = new Uri("http://fake/") }, Model, candidatePoolSize, 6);
 
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
     {

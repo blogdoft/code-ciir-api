@@ -53,8 +53,8 @@ Igual a hoje: nenhum esquema, nenhuma política, nenhum middleware de autentica�
   única exceção deliberada além de `/health` e Swagger/OpenAPI (que já ficam fora do
   `FallbackPolicy` por não passarem pelo roteamento de endpoints — ver "Implementação").
 - Sem token, token malformado/expirado/com assinatura ou issuer inválidos em um controller REST:
-  `401 Unauthorized`, `WWW-Authenticate: Bearer`, corpo `application/problem+json` no mesmo formato
-  dos demais erros da API.
+  `401 Unauthorized`, `WWW-Authenticate: Bearer`, sem corpo. (⚠️ correção em `15-skills-alignment.md`: antes
+  o corpo era `application/problem+json`.)
 - `/mcp` nunca responde `401` por falta de token — uma chamada MCP mal formada ainda pode responder
   `400`/`406` pelas próprias regras do transporte Streamable HTTP, só não pela ausência de
   `Authorization`.
@@ -140,8 +140,8 @@ pelo `WebApplicationFactory` — ou seja, tarde demais para essa leitura especí
 
 - `KeycloakOptionsTests`: mesmos casos do indexer (habilitação, validação de `Authority`,
   trimming).
-- `KeycloakAuthenticationTests`: `GET /version` (controller sem `[Authorize]` próprio) sem token →
-  401 + `WWW-Authenticate: Bearer` + `application/problem+json`; com token válido → 200; com token
+- `KeycloakAuthenticationExtensionsTests` (ex-`KeycloakAuthenticationTests`): `GET /version` (controller sem `[Authorize]` próprio) sem token →
+  401 + `WWW-Authenticate: Bearer` + corpo vazio; com token válido → 200; com token
   expirado → 401; `POST /mcp` sem token, autenticação ligada → nunca 401 (400, pelas regras do
   próprio transporte MCP para um corpo vazio) — prova que o `FallbackPolicy` alcança `/version`
   mas não `/mcp`; `POST /mcp` com autenticação desligada → mesmo comportamento (400, nunca 401).

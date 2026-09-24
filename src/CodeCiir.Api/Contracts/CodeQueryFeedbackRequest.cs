@@ -1,3 +1,5 @@
+using CodeCiir.Application.Feedback;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace CodeCiir.Api.Contracts;
@@ -16,10 +18,18 @@ namespace CodeCiir.Api.Contracts;
 #pragma warning disable SA1313 // positional record parameters are also public properties - PascalCase is correct
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CodeQueryFeedbackRequest(
+    [Required(ErrorMessage = "The 'projectId' field is required and must be a positive integer."),
+        Range(1, long.MaxValue, ErrorMessage = "The 'projectId' field is required and must be a positive integer.")]
     long? ProjectId,
+    [Required(AllowEmptyStrings = false, ErrorMessage = "The 'question' field is required and must not be empty or blank."),
+        StringLength(FeedbackService.MaxQuestionLength, ErrorMessage = "The 'question' field must not exceed {1} characters.")]
     string? Question,
-    bool? Useful,
-    IReadOnlyList<double>? Similarities,
-    string? Reason,
+    [Required(ErrorMessage = "The 'useful' field is required.")] bool? Useful,
+    [Required(ErrorMessage = "The 'similarities' field is required (may be an empty array)."),
+        MaxLength(FeedbackService.MaxSimilaritiesCount, ErrorMessage = "The 'similarities' field must not contain more than {1} values.")]
+    double[]? Similarities,
+    [StringLength(FeedbackService.MaxReasonLength, ErrorMessage = "The 'reason' field must not exceed {1} characters.")] string? Reason,
+    [Required(AllowEmptyStrings = false, ErrorMessage = "The 'user' field is required and must not be empty. For MCP callers, this must be the calling agent/tool's own name."),
+        StringLength(FeedbackService.MaxUserLength, ErrorMessage = "The 'user' field must not exceed {1} characters.")]
     string? User);
 #pragma warning restore SA1313

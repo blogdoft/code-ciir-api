@@ -2,14 +2,10 @@ namespace CodeCiir.Application.Feedback;
 
 public interface IFeedbackRepository
 {
-    Task<FeedbackResult> InsertAsync(
-        long projectId,
-        string question,
-        bool useful,
-        IReadOnlyList<double> similarities,
-        string? reason,
-        string user,
-        CancellationToken cancellationToken = default);
+    /// <summary>Persists <paramref name="feedback"/> and returns the stored record, including its generated id and timestamp.</summary>
+    /// <param name="feedback">The validated feedback to record.</param>
+    /// <param name="cancellationToken">Token used to cancel the command.</param>
+    Task<FeedbackResult> InsertAsync(NewFeedback feedback, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns feedback effectiveness statistics as a dense week × project grid: every ISO

@@ -1,3 +1,5 @@
+using CodeCiir.Application.CodeQueries;
+
 namespace CodeCiir.Api.Contracts;
 
 /// <summary>
@@ -12,5 +14,9 @@ public sealed record CodeQueryRelationResponse(
     long? ToId,
     string RelationType,
     string TargetSymbol,
-    string ResolutionOrigin);
+    string ResolutionOrigin)
+{
+    public static CodeQueryRelationResponse From(MatchRelation relation) => new(
+        relation.FromId, relation.ToId, relation.RelationType, relation.TargetSymbol, relation.ResolutionOrigin);
+}
 #pragma warning restore SA1313
