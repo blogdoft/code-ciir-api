@@ -1,5 +1,6 @@
 using BlogDoFT.Libs.Api.OpenTelemetry.Extensions;
 using Npgsql;
+using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
@@ -9,6 +10,9 @@ public static class ObservabilityExtensions
 {
     /// <summary>Service name reported to the tracing backend when <c>OTEL_SERVICE_NAME</c> is not set.</summary>
     public const string DefaultServiceName = "code-ciir-api";
+
+    /// <summary>Kubernetes probe path, kept out of traces and HTTP metrics.</summary>
+    public const string HealthPath = "/health";
 
     /// <summary>
     /// Wires logging, metrics and tracing through <c>BlogDoFT.Libs.Api.OpenTelemetry</c>, driven by
@@ -24,6 +28,11 @@ public static class ObservabilityExtensions
         builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
 
         builder.Services.AddOtel(builder.Configuration);
+
+        // The kubelet's probe hits are noise in the APM: dropping them here also drops their child
+        // spans (the sampler follows the parent's decision).
+        builder.Services.Configure<AspNetCoreTraceInstrumentationOptions>(options =>
+            options.Filter = httpContext => !httpContext.Request.Path.StartsWithSegments(HealthPath));
 
         // The shared library names the service after the "ApplicationName" configuration key, but
         // that key is reserved by the ASP.NET host and always resolves to the assembly name
