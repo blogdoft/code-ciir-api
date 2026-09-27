@@ -10,14 +10,12 @@ public sealed class GetByPublicIdAsyncTests(PostgresFixture fixture) : BaseProje
     public async Task Should_ReturnTheProject_When_ItExists()
     {
         var publicId = Guid.NewGuid();
-        await Seeder.InsertProjectAsync(embeddingModel: "bge-m3", embeddingDimensions: 1024, publicId: publicId);
+        await Seeder.InsertProjectAsync(publicId: publicId);
 
         var project = await Sut.GetByPublicIdAsync(publicId);
 
         project.ShouldNotBeNull();
         project.PublicId.ShouldBe(publicId);
-        project.EmbeddingModel.ShouldBe("bge-m3");
-        project.EmbeddingDimensions.ShouldBe(1024);
     }
 
     [Fact]

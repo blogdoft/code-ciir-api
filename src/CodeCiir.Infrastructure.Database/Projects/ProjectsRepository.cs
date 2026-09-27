@@ -12,8 +12,6 @@ public sealed class ProjectsRepository(NpgsqlDataSource dataSource) : IProjectsR
         SELECT id AS Id
              , public_id AS PublicId
              , name AS Name
-             , embedding_model AS EmbeddingModel
-             , embedding_dimensions AS EmbeddingDimensions
              , git_url AS GitUrl
              , git_raw_url AS GitRawUrl
              , created_at AS CreatedAt

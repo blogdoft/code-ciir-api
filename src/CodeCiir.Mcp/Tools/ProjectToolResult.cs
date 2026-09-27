@@ -5,8 +5,6 @@ namespace CodeCiir.Mcp.Tools;
 public sealed record ProjectToolResult(
     Guid Id,
     string Name,
-    string EmbeddingModel,
-    int EmbeddingDimensions,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 #pragma warning restore SA1313

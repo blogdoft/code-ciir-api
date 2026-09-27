@@ -4,8 +4,10 @@ namespace CodeCiir.Infrastructure.Database.Tests;
 /// DDL mirroring code-ciir-indexer's InitialSchema migration
 /// (sauron/code-ciir-indexer, src/Ciir.Indexer.Infrastructure.PostgreSql/Migrations/Migrations/
 /// M20260908000000_InitialSchema.cs), confirmed against a live introspection of code3rag - see
-/// .specs/01-schema-discovery.md. This API never runs migrations against the real database; this
-/// DDL exists purely to seed a disposable Testcontainers instance for these tests.
+/// .specs/01-schema-discovery.md. <c>projects.embedding_model</c>/<c>embedding_dimensions</c> were
+/// dropped by that repo's M20260927000000_DropProjectEmbeddingColumns migration, so they're
+/// omitted here too. This API never runs migrations against the real database; this DDL exists
+/// purely to seed a disposable Testcontainers instance for these tests.
 /// </summary>
 internal static class Schema
 {
@@ -16,8 +18,6 @@ internal static class Schema
             id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             public_id uuid NOT NULL,
             name text NOT NULL,
-            embedding_model text NOT NULL,
-            embedding_dimensions integer NOT NULL,
             git_url text,
             git_raw_url text,
             created_at timestamptz NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),

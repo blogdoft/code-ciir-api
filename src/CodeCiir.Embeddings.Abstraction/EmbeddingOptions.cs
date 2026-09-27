@@ -4,11 +4,11 @@ namespace CodeCiir.Embeddings.Abstraction;
 /// Configuration bound from the "Embeddings" configuration section - connection settings for
 /// whichever provider is selected via <see cref="Provider"/>, plus the single deployment-wide
 /// <see cref="Model"/>/<see cref="Dimensions"/> used to embed a code-queries <c>question</c>.
-/// Although <c>projects.embedding_model</c>/<c>embedding_dimensions</c> also exist per-project in
-/// code3rag, <c>ciir_documents.embedding</c> has one fixed vector width for the whole
-/// installation (see .specs/01-schema-discovery.md) - "model per project" is informational
-/// metadata, not a real per-row capability - so question embedding always uses this single
-/// app-configured model rather than the calling project's. See .specs/09-code-queries-filters.md.
+/// <c>ciir_documents.embedding</c> has one fixed vector width for the whole installation (see
+/// .specs/01-schema-discovery.md), and <c>projects.embedding_model</c>/<c>embedding_dimensions</c>
+/// no longer exist (dropped 2026-09-27 - they were informational metadata, not a real per-row
+/// capability) - question embedding always uses this single app-configured model. See
+/// .specs/09-code-queries-filters.md.
 /// </summary>
 public sealed class EmbeddingOptions
 {

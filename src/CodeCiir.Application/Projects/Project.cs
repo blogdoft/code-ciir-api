@@ -9,8 +9,6 @@ public sealed record Project(
     long Id,
     Guid PublicId,
     string Name,
-    string EmbeddingModel,
-    int EmbeddingDimensions,
     Uri? GitUrl,
     Uri? GitRawUrl,
     DateTime CreatedAt,

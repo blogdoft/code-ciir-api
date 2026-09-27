@@ -10,8 +10,6 @@ internal static class ProjectFaker
             faker.Random.Long(1, 1000),
             faker.Random.Guid(),
             faker.Commerce.ProductName(),
-            "bge-m3",
-            1024,
             new Uri(faker.Internet.UrlWithPath()),
             new Uri(faker.Internet.UrlWithPath()),
             faker.Date.PastOffset().UtcDateTime,
