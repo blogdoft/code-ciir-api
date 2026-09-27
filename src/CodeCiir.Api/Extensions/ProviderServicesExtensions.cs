@@ -1,6 +1,5 @@
 using CodeCiir.Embeddings.Abstraction;
 using CodeCiir.Embeddings.Ollama;
-using CodeCiir.Mcp;
 using CodeCiir.Reranking.Abstraction;
 using CodeCiir.Reranking.Ollama;
 using CodeCiir.Reranking.OpenAI;

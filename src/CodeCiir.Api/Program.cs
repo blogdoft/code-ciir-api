@@ -3,7 +3,6 @@ using CodeCiir.Api.Extensions;
 using CodeCiir.Api.Logging;
 using CodeCiir.Application;
 using CodeCiir.Infrastructure.Database;
-using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 

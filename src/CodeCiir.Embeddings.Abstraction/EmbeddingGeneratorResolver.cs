@@ -61,6 +61,8 @@ public sealed class EmbeddingGeneratorResolver
     }
 
     /// <summary>Resolves (and caches) the embedding generator for the given model/dimensions pair.</summary>
+    /// <param name="model">Name of the embedding model to resolve a generator for.</param>
+    /// <param name="dimensions">Number of components the resolved generator's vectors must have.</param>
     public IEmbeddingGenerator Resolve(string model, int dimensions)
     {
         ValidateProviderConfigured();

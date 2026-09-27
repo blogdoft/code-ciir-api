@@ -2,7 +2,6 @@ using BlogDoFT.Libs.Api.OpenTelemetry.Extensions;
 using Npgsql;
 using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 
 namespace CodeCiir.Api.Extensions;
 
