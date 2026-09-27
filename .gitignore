@@ -20,3 +20,6 @@ Thumbs.db
 
 ## Claude Code (local, per-machine settings)
 .claude/settings.local.json
+
+## BlogDoFT.Ciir analysis output
+ciir-output/
