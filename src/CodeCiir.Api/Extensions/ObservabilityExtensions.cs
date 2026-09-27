@@ -15,18 +15,15 @@ public static class ObservabilityExtensions
     public const string HealthPath = "/health";
 
     /// <summary>
-    /// Wires logging, metrics and tracing through <c>BlogDoFT.Libs.Api.OpenTelemetry</c>, driven by
-    /// the <c>Observability</c> configuration section (exporters, OTLP endpoint - see
-    /// appsettings.json and .eng/k8s/configmap.yaml). Console logs are structured JSON (message
-    /// template properties and scopes - trace/span ids included - become fields).
+    /// Wires metrics and tracing through <c>BlogDoFT.Libs.Api.OpenTelemetry</c>, driven by the
+    /// <c>Observability</c> configuration section (exporters, OTLP endpoint - see appsettings.json
+    /// and .eng/k8s/configmap.yaml). Logging is wired separately, see
+    /// <c>StructuredLoggingExtensions</c>.
     /// </summary>
     /// <param name="builder">The web application builder.</param>
     /// <returns>The same <paramref name="builder"/>, for chaining.</returns>
     public static WebApplicationBuilder AddObservability(this WebApplicationBuilder builder)
     {
-        builder.Logging.ClearProviders();
-        builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
-
         builder.Services.AddOtel(builder.Configuration);
 
         // The kubelet's probe hits are noise in the APM: dropping them here also drops their child
