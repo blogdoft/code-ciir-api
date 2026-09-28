@@ -3,7 +3,7 @@
 **Status: concluído — requisito central deste projeto, entregue.** `IRelationshipGraphRepository`/
 `RelationshipGraphRepository` (CTE recursiva por FK bigint), `CodeGraph`/`GraphNode`/`GraphEdge`,
 `CodeQueryService` decorando `matches` com `graph`, contrato REST `{matches, graph:{nodes,
-edges,truncated}}`. 29 testes verdes (12 unit incluindo os 2 novos de expansão de grafo em
+edges,truncated}}` (JSON em `camelCase`). 29 testes verdes (12 unit incluindo os 2 novos de expansão de grafo em
 `CodeQueryServiceTests`, 19 Testcontainers incluindo os 10 novos de
 `RelationshipGraphRepositoryTests` cobrindo cada caso da lista de verificação, 4 HTTP
 atualizados para o novo formato).
@@ -22,7 +22,7 @@ alcançou corretamente, entre outros, `RouteId.TryParsePositive` (nível 1, via 
 partir dele, **quem o chama de volta** — `ProjectsController.DeleteAsync/GetAsync/
 UpdateAsync`, `CodeQueriesController.SubmitFeedbackAsync` (nível 2) — confirmando travessia
 bidirecional real de 2 saltos contra dado de produção, incluindo várias arestas para
-símbolos externos (`to_id: null`, ex. `System.Object.GetHashCode()`,
+símbolos externos (`toId: null`, ex. `System.Object.GetHashCode()`,
 `Microsoft.AspNetCore.Mvc.ControllerBase`) preservadas como folhas conforme desenhado.
 
 ## Requisito (como pedido pelo usuário)
@@ -51,21 +51,21 @@ lista de arestas à parte — não uma árvore com repetição.
     {
       "id": 22,
       "kind": "method",
-      "symbol_container": "CodeRag.Api.Controllers.CodeQueriesController",
-      "symbol_name": "QueryAsync",
-      "symbol_qualified_name": "CodeRag.Api.Controllers.CodeQueriesController.QueryAsync",
-      "source_file": "src/CodeRag.Api/Controllers/CodeQueriesController.cs",
-      "embedding_text": "...",
+      "symbolContainer": "CodeRag.Api.Controllers.CodeQueriesController",
+      "symbolName": "QueryAsync",
+      "symbolQualifiedName": "CodeRag.Api.Controllers.CodeQueriesController.QueryAsync",
+      "sourceFile": "src/CodeRag.Api/Controllers/CodeQueriesController.cs",
+      "embeddingText": "...",
       "similarity": 0.83
     }
   ],
   "graph": {
     "nodes": [
-      { "id": 61, "kind": "method", "symbol_container": "CodeRag.Api.Problems.RouteId", "symbol_name": "TryParsePositive", "symbol_qualified_name": "CodeRag.Api.Problems.RouteId.TryParsePositive", "source_file": "src/CodeRag.Api/Problems/RouteId.cs", "depth": 1 }
+      { "id": 61, "kind": "method", "symbolContainer": "CodeRag.Api.Problems.RouteId", "symbolName": "TryParsePositive", "symbolQualifiedName": "CodeRag.Api.Problems.RouteId.TryParsePositive", "sourceFile": "src/CodeRag.Api/Problems/RouteId.cs", "depth": 1 }
     ],
     "edges": [
-      { "from_id": 22, "to_id": 61, "relation_type": "calls", "target_symbol": "CodeRag.Api.Problems.RouteId.TryParsePositive", "resolution_origin": "project", "depth": 0 },
-      { "from_id": 22, "to_id": null, "relation_type": "calls", "target_symbol": "System.Threading.Tasks.Task.Run", "resolution_origin": "framework", "depth": 0 }
+      { "fromId": 22, "toId": 61, "relationType": "calls", "targetSymbol": "CodeRag.Api.Problems.RouteId.TryParsePositive", "resolutionOrigin": "project", "depth": 0 },
+      { "fromId": 22, "toId": null, "relationType": "calls", "targetSymbol": "System.Threading.Tasks.Task.Run", "resolutionOrigin": "framework", "depth": 0 }
     ],
     "truncated": false
   }
@@ -83,24 +83,24 @@ Notas de desenho:
   (`depth: 0` quando ligam diretamente a um root) — a aresta em si é informação nova
   (quem/o que o match chama ou é chamado por) mesmo quando um dos nós já é conhecido.
 - **Arestas para alvos não resolvidos (`target_document_id IS NULL` — 57% dos dados reais
-  medidos, ver `01-schema-discovery.md`) ainda entram em `graph.edges`**, com `to_id: null`
-  e um campo `target_symbol` (nome qualificado do alvo, sempre presente mesmo sem
+  medidos, ver `01-schema-discovery.md`) ainda entram em `graph.edges`**, com `toId: null`
+  e um campo `targetSymbol` (nome qualificado do alvo, sempre presente mesmo sem
   documento) — descartá-las violaria "todas as relações". Elas são sempre **folhas**: o
   BFS não continua a partir de um alvo sem `document_id` (não há nó para expandir).
-  Simetricamente, uma aresta pode ter `from_id: null` se o *destino* de uma travessia
+  Simetricamente, uma aresta pode ter `fromId: null` se o *destino* de uma travessia
   reversa (nível 2, chegando "de trás") não tiver `source_document_id` resolvido — caso
   raro na prática (a origem de uma relação é sempre algo indexado), mas o contrato precisa
   admitir ambos os lados como nulos por simetria de schema.
 - `graph.edges[].depth` é a distância mínima (em saltos) a partir de **algum** nó de
   `matches`.
 - Nenhum campo de similaridade nos nós do grafo além de `matches`.
-- `relation_type` é `string` livre — confirmado como texto livre no schema real (coluna
+- `relationType` é `string` livre — confirmado como texto livre no schema real (coluna
   `ciir_relations.kind`), 9 valores observados em produção, sem enum fechado.
 - Campos adicionais de `ciir_relations` que agregam valor e são baratos de incluir por
-  aresta, já que a tabela já os tem: `resolution_origin` (`project`/`solution`/
+  aresta, já que a tabela já os tem: `resolutionOrigin` (`project`/`solution`/
   `framework`/`dependency`) — útil para o consumidor distinguir "isso chama algo do meu
   próprio código" de "isso chama algo do framework", especialmente relevante justamente
-  nas arestas com `to_id: null`.
+  nas arestas com `toId: null`.
 
 **Alternativa rejeitada, registrada para referência**: aninhar `related: [...]` dentro de
 cada item de `matches`. Duplica nós quando matches compartilham vizinhos — descartada, ver
@@ -191,7 +191,7 @@ amplamente implementada):
 - **`Infrastructure.Database`**: `RelationshipGraphRepository`, SQL da seção acima.
 - **`Api`**: `CodeQueryResponse` novo (substitui o array simples), contratos
   `CodeQueryGraphResponse`/`CodeQueryGraphNodeResponse`/`CodeQueryGraphEdgeResponse`
-  (`to_id`/`from_id` nullable `long?`, `target_symbol` nullable string).
+  (`toId`/`fromId` nullable `long?`, `targetSymbol` nullable string).
 - **`Mcp`**: `query_project_code` passa a devolver a mesma forma (`matches`/`graph`) —
   documentar isso claramente no `[Description]` da tool.
 
@@ -211,7 +211,7 @@ amplamente implementada):
   nó sem relações (grafo vazio), relações só de nível 1, nível 2 alcançando um nó já
   visto em nível 1 (sem duplicar, guarda de ciclo funcionando), ciclo direto A→B→A (sem
   loop infinito), aresta com `target_document_id IS NULL` aparecendo em `graph.edges` com
-  `to_id: null` e `target_symbol` preenchido (sem tentar expandir a partir dela), e um caso
+  `toId: null` e `targetSymbol` preenchido (sem tentar expandir a partir dela), e um caso
   de fan-out acima de `MaxNodesPerQuery` confirmando truncamento sinalizado.
 - Teste confirmando que os 9 tipos de relação reais (`calls`, `reads`, `constructs`,
   `overrides`, `writes`, `implements`, `throws`, `inherits`, `catches`) aparecem quando

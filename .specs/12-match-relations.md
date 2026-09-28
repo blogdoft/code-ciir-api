@@ -1,6 +1,6 @@
-# Fase 12 — `matches[].relations`: relações diretas por match
+# Fase 11 — `matches[].relations`: relações diretas por match
 
-**Status: concluído.** Cada item de `matches` no response de `POST /api/v1/code-queries`
+**Status: concluído.** Cada item de `matches` no response de `POST /api/code-queries`
 ganhou um campo `relations`: o conjunto completo de relações diretas (1 hop, ambas as
 direções, todos os tipos) daquele match específico — sempre completo, independente do teto
 `MaxGraphNodes` que pode truncar o `graph` de 2 hops. 152 testes verdes na solução inteira.
@@ -33,7 +33,7 @@ própria (`GetDirectRelationsAsync`), independente do tamanho do grafo de 2 hops
       "id": 1,
       ...,
       "relations": [
-        { "from_id": 1, "to_id": 2, "relation_type": "calls", "target_symbol": "Foo.Bar.Qux", "resolution_origin": "project" }
+        { "fromId": 1, "toId": 2, "relationType": "calls", "targetSymbol": "Foo.Bar.Qux", "resolutionOrigin": "project" }
       ]
     }
   ],
@@ -42,10 +42,10 @@ própria (`GetDirectRelationsAsync`), independente do tamanho do grafo de 2 hops
 ```
 Uma relação entre dois matches da mesma página (ex.: match A chama match B, ambos
 retornados) aparece em `relations` de **ambos** — é, de fato, uma relação direta de cada um
-deles. `to_id` é `null` quando o alvo está fora do universo indexado (externo/não
-resolvido); `target_symbol` ainda o nomeia nesse caso. `relations` é sempre um array vazio
-(nunca `null`) quando o match não tem relações diretas, ou quando `project_id` foi omitido
-da requisição — mesma regra já aplicada a `graph` (Fase 9): `ciir_relations` é escopada por
+deles. `toId` é `null` quando o alvo está fora do universo indexado (externo/não
+resolvido); `targetSymbol` ainda o nomeia nesse caso. `relations` é sempre um array vazio
+(nunca `null`) quando o match não tem relações diretas, ou quando `projectId` foi omitido
+da requisição — mesma regra já aplicada a `graph` (Fase 8): `ciir_relations` é escopada por
 `project_id`, então sem ele não há como buscar relações de forma correta.
 
 ## Implementação
@@ -63,7 +63,7 @@ da requisição — mesma regra já aplicada a `graph` (Fase 9): `ciir_relations
   rerankeada/truncada em `limit`), busca `GetDirectRelationsAsync` com os ids dessa página
   (mesma condição de `projectId is not null` do `graph`) e aplica `r with { Relations = ... }`.
 - `CodeQueryResult.Relations` — novo parâmetro posicional opcional (`IReadOnlyList<MatchRelation>?
-  = null`), mesma técnica de `RerankScore` (Fase 10) para não quebrar call sites posicionais
+  = null`), mesma técnica de `RerankScore` (Fase 9) para não quebrar call sites posicionais
   existentes.
 - Contratos: `CodeQueryRelationResponse` (Api) e `CodeQueryRelationToolResult` (Mcp), campo
   `Relations` (não-nulo, `[]` por padrão) adicionado a `CodeQueryResultResponse` e

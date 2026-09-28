@@ -49,12 +49,12 @@ formato dos resultados continuam como em `07-mcp-tools.md` / `13-mcp-code-source
   `401/403/5xx`, com log de aplicação.
 - OpenAPI: exemplos de request (`RequestExamplesSchemaFilter`) e respostas `401`/`403` documentadas
   quando o Keycloak está ligado.
-- **Observabilidade**: Serilog + OpenTelemetry manual substituídos por
-  `BlogDoFT.Libs.Api.OpenTelemetry` (seção `Observability`), mais `AddNpgsql()` para spans do
-  Postgres. Logs seguem em stdout como JSON estruturado (`AddJsonConsole`). Mudança de deploy (⚠️ ver correção do nome do serviço abaixo): o
-  `configmap.yaml` troca as variáveis `OTEL_*` por `Observability__*`, mantendo `OTEL_SERVICE_NAME`. O
-  *request logging* do Serilog deixou de existir (o nível `Microsoft.AspNetCore` segue `Warning`);
-  a visibilidade de requisições vem dos traces, e falhas `4xx/5xx` mapeadas são logadas pela app.
+- **Observabilidade**: OpenTelemetry via `BlogDoFT.Libs.Api.OpenTelemetry` (seção
+  `Observability`), mais `AddNpgsql()` para spans do Postgres; o `configmap.yaml` usa
+  `Observability__*` e `OTEL_SERVICE_NAME`. Logs em stdout como JSON estruturado via Serilog
+  (`Logging/StructuredLoggingExtensions`, único sink, campo `level` em minúsculas para o Loki),
+  com uma linha por requisição (exceto `/health`); falhas `4xx/5xx` mapeadas também são logadas
+  pela app.
 - Infra: `ProjectTable` e `CodeQueryFeedbackTable` (`ToDomain()`; `FromDomain()` só onde há escrita).
   `IFeedbackRepository.InsertAsync` passou a receber um `NewFeedback` em vez de 6 parâmetros.
   Demais tipos de linha são projeções (`*Projection`).
@@ -80,11 +80,10 @@ em branco; dados via `Faker<T>` (Bogus); asserções de `Result` verificam a fal
 `FailureResults`, `ClaimsPrincipalExtensions`, respostas `401/403` do Keycloak, tags/exemplos do
 OpenAPI, ausência de `snake_case` na resposta.
 
-## ⚠️ Correção pós-deploy: nome do serviço nos traces
+## Nome do serviço nos traces
 
-A `v0.8.0` foi ao ar com os traces sob `service.name = CodeCiir.Api` (antes: `code-ciir-api`),
-quebrando qualquer dashboard/alerta que filtre pelo nome antigo. A lib `BlogDoFT.Libs.Api.OpenTelemetry`
-nomeia o serviço por `ApplicationName`, chave reservada pelo host do ASP.NET (sempre o nome do
-assembly), então o `ApplicationName` posto no `configmap.yaml` nunca teve efeito. `AddObservability`
-passou a definir o nome explicitamente (`OTEL_SERVICE_NAME`, padrão `code-ciir-api`) e o
-`configmap.yaml` voltou a definir `OTEL_SERVICE_NAME`.
+A lib `BlogDoFT.Libs.Api.OpenTelemetry` nomeia o serviço por `ApplicationName`, chave reservada
+pelo host do ASP.NET (sempre o nome do assembly, `CodeCiir.Api`), então um `ApplicationName`
+posto no `configmap.yaml` não tem efeito. `AddObservability` define o nome explicitamente a
+partir de `OTEL_SERVICE_NAME` (padrão `code-ciir-api`), preservando o nome usado por
+dashboards/alertas.

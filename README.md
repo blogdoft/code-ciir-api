@@ -6,15 +6,20 @@ os trechos semanticamente mais similares (como o
 relações estruturais de código — até dois níveis, todas as relações — a partir de cada
 resultado.
 
-Este repositório está na fase de planejamento. Todo o desenho evolutivo do que será
-construído, fase a fase, vive em [`.specs/`](./.specs/00-roadmap.md) — comece por lá.
+Todo o desenho evolutivo do serviço, fase a fase, vive em [`.specs/`](./.specs/00-roadmap.md) —
+comece por lá.
 
 ## Status
 
-Ver [`.specs/00-roadmap.md`](./.specs/00-roadmap.md) para o roteiro completo e o status de
-cada fase. O schema real de `code3rag` já foi confirmado por introspecção ao vivo (Fase 0
-concluída — ver [`.specs/01-schema-discovery.md`](./.specs/01-schema-discovery.md)):
-`code-ciir-indexer` já populou 21 projetos, 901 documentos e 4429 relações de código,
-prontos para validar as próximas fases contra dado real. Nenhuma linha de código ainda foi
-escrita — as fases 1-4 (bootstrap, projects, busca vetorial, grafo de relações) são o
-caminho crítico até o requisito central deste serviço.
+Em produção atrás do gateway compartilhado `https://blogdoft.home.arpa/code-brain`:
+
+- `POST /api/code-queries` — busca semântica + reranking + grafo de relações (2 hops);
+- `POST /api/code-queries/feedback`, `GET /api/code-queries/feedback/stats`,
+  `GET /api/code-queries/feedback/export` — feedback e relatórios;
+- `GET /version`, `GET /health`;
+- `/mcp` — tools MCP (`list_projects`, `query_project_code`, `get_code_source`,
+  `submit_code_query_feedback`), sempre anônimo.
+
+Projetos (CRUD) são responsabilidade do
+[`code-ciir-indexer`](https://forgejo.home.arpa/sauron/code-ciir-indexer), dono do schema de
+`code3rag`. Ver [`.specs/00-roadmap.md`](./.specs/00-roadmap.md) para o status de cada fase.

@@ -31,7 +31,9 @@ Seção `Keycloak` (`appsettings.json` / variáveis `Keycloak__*`) — idêntica
 | `Authority` | string | *(vazio)* | URL do realm, ex.: `https://keycloak.home.arpa/realms/blogdoft`. Obrigatória quando `Enabled = true`. |
 | `Audience` | string | *(vazio)* | Se preenchido, o claim `aud` do token precisa conter este valor. Se vazio, a audiência **não** é validada. |
 | `ClientId` | string | *(vazio)* | `client_id` do client público que representa esta aplicação, compartilhado com o botão **Authorize** do Swagger UI. Se vazio, o Swagger UI só aceita um token colado. |
-| `RequireHttpsMetadata` | bool | `true` | Exige HTTPS para buscar o *discovery document*/JWKS. Só `false` contra um Keycloak local em HTTP. |
+| `MetadataAddress` | string | *(vazio)* | Endereço alternativo de onde buscar o *discovery document*/JWKS (ex.: o `Service` do Keycloak dentro do cluster, em HTTP). `Authority` continua sendo usada para validar o issuer e para o login do Swagger UI. Se vazio, os metadados vêm da própria `Authority`. |
+| `RequireHttpsMetadata` | bool | `true` | Exige HTTPS para buscar o *discovery document*/JWKS. `false` contra um Keycloak em HTTP (local, ou via `MetadataAddress` interno). |
+| `SkipCertificateValidation` | bool | `false` | Ignora erros de certificado TLS no *backchannel* do `JwtBearer` (equivalente a `curl -k`). O JWKS que o Keycloak anuncia continua no host público HTTPS mesmo com `MetadataAddress`, então uma CA privada não confiável pelo container quebra a validação. Paliativo até a CA ser confiada na imagem. |
 
 Regras de habilitação e validação de startup: mesmas do indexer (`Authority` vazia, não-absoluta ou
 `http://` com `RequireHttpsMetadata=true` falham o startup com `InvalidOperationException`, capturada
@@ -53,8 +55,7 @@ Igual a hoje: nenhum esquema, nenhuma política, nenhum middleware de autentica�
   única exceção deliberada além de `/health` e Swagger/OpenAPI (que já ficam fora do
   `FallbackPolicy` por não passarem pelo roteamento de endpoints — ver "Implementação").
 - Sem token, token malformado/expirado/com assinatura ou issuer inválidos em um controller REST:
-  `401 Unauthorized`, `WWW-Authenticate: Bearer`, sem corpo. (⚠️ correção em `15-skills-alignment.md`: antes
-  o corpo era `application/problem+json`.)
+  `401 Unauthorized`, `WWW-Authenticate: Bearer`, sem corpo.
 - `/mcp` nunca responde `401` por falta de token — uma chamada MCP mal formada ainda pode responder
   `400`/`406` pelas próprias regras do transporte Streamable HTTP, só não pela ausência de
   `Authorization`.
@@ -99,8 +100,9 @@ organização do indexer:
 - Dependência nova: `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.12 (mesma versão do
   indexer).
 - `appsettings.json`: seção `Keycloak` com `Enabled: false` e o resto vazio (documenta o formato).
-- `.eng/k8s/configmap.yaml`: bloco comentado com `Keycloak__Authority`/`Keycloak__Audience`/
-  `Keycloak__ClientId`, destacando que `/mcp` continua anônimo mesmo com `Enabled=true`.
+- `.eng/k8s/configmap.yaml`: `Keycloak__Enabled=true`, `Authority`, `Audience`
+  (`code-brain`), `MetadataAddress` (Keycloak interno em HTTP), `RequireHttpsMetadata=false`,
+  `SkipCertificateValidation=true` e `ClientId`; `/mcp` continua anônimo.
 
 ## Atualização — "/mcp" exposto pelo ingress
 
@@ -110,11 +112,11 @@ o mesmo `Service` (`code-ciir-api`): `/code-brain/mcp`, prefixo-removido pelo me
 `router.middlewares` vale para o `Ingress` inteiro, não por `path`) — chega no backend como `/mcp`,
 igual ao roteamento local (`app.MapMcp("/mcp")`).
 
-Consequência de segurança explícita: `/mcp` passa a ser alcançável por qualquer um que alcance
-`blogdoft.home.arpa`, sem autenticação possível (ver acima — é permanente, não um gap). Essa é
-exatamente a mesma exposição que `/code-brain/api/code-queries` já tem hoje enquanto
-`Keycloak:Enabled` estiver `false` (o padrão) — não é uma categoria de risco nova, só um segundo
-caminho de entrada com o mesmo nível de proteção (nenhum, por ora). Nenhuma mudança de timeout foi
+Consequência de segurança explícita: `/mcp` é alcançável por qualquer um que alcance
+`blogdoft.home.arpa`, sem autenticação possível (ver acima — é permanente, não um gap). No
+cluster, `Keycloak__Enabled` está `true` (`configmap.yaml`, realm `k8s`, audiência
+`code-brain`), então os endpoints REST exigem token e `/mcp` é o único caminho anônimo além de
+`/health` e do Swagger. Nenhuma mudança de timeout foi
 necessária: `code-ciir-api-transport` (`serverstransport.yaml`) já se aplica no nível do `Service`,
 cobrindo qualquer `path` do mesmo backend, inclusive `/mcp`.
 
@@ -140,7 +142,7 @@ pelo `WebApplicationFactory` — ou seja, tarde demais para essa leitura especí
 
 - `KeycloakOptionsTests`: mesmos casos do indexer (habilitação, validação de `Authority`,
   trimming).
-- `KeycloakAuthenticationExtensionsTests` (ex-`KeycloakAuthenticationTests`): `GET /version` (controller sem `[Authorize]` próprio) sem token →
+- `KeycloakAuthenticationExtensionsTests`: `GET /version` (controller sem `[Authorize]` próprio) sem token →
   401 + `WWW-Authenticate: Bearer` + corpo vazio; com token válido → 200; com token
   expirado → 401; `POST /mcp` sem token, autenticação ligada → nunca 401 (400, pelas regras do
   próprio transporte MCP para um corpo vazio) — prova que o `FallbackPolicy` alcança `/version`

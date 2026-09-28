@@ -1,7 +1,7 @@
 # Fase 0 — Descoberta do schema real de `code3rag`
 
 **Status: concluído.** Schema confirmado por introspecção ao vivo diretamente em
-`code3rag` (`192.168.1.212:5432`, usuário `fatlip`), via `psql` rodado em um container
+`code3rag` (`192.168.1.212:5432`), via `psql` rodado em um container
 Docker descartável (não havia cliente Postgres instalado localmente). Um achado anterior
 desta mesma fase (ver "Anexo histórico" no fim deste documento) tinha inspecionado
 `code2rag` por engano — schema completamente diferente, descartado como base de desenho.
@@ -19,6 +19,8 @@ convenção do `code-rag-api` em relação a `code2rag`).
 ciir-indexer-VersionInfo   -- bookkeeping de migration do indexer, irrelevante aqui
 ciir_documents             -- os NÓS do grafo (entidades de código indexadas)
 ciir_relations             -- as ARESTAS do grafo (relações entre entidades)
+ciir_uploads               -- fila durável de uploads CIIR do indexer, irrelevante aqui
+code_query_feedback        -- feedback de code-queries (escrito por esta API)
 indexing_runs              -- bookkeeping de execuções do indexer, irrelevante aqui
 projects                   -- projetos indexados
 ```
@@ -28,33 +30,34 @@ Extensão `vector` (pgvector) instalada; índice de similaridade é **HNSW**, n�
 ## `projects`
 
 ```
-id                     bigint PK, identity
+id                     bigint PK, identity   -- chave interna, só usada nas FKs
+public_id              uuid NOT NULL, UNIQUE (ux_projects_public_id) -- UUIDv7, identificador exposto
 name                   text NOT NULL, UNIQUE (ux_projects_name)
-embedding_model        text NOT NULL
-embedding_dimensions   integer NOT NULL
+git_url                text                  -- opcional
+git_raw_url            text                  -- opcional
 created_at             timestamptz NOT NULL default now() UTC
 updated_at             timestamptz NOT NULL default now() UTC
 ```
 
 Divergências importantes em relação ao `ProjectResponse` do code-rag-api:
-- **Não existem `git_url`/`git_raw_url`** — `code-ciir-api` não pode montar
-  `gitUrl`/`gitRawUrl` nos resultados de `code-queries` a partir do projeto; esses dois
-  campos do contrato de referência **não têm equivalente** e devem ser omitidos (ver
-  `03-projects-endpoint.md`, `04-code-queries-baseline.md`).
-- `embedding_model`/`embedding_dimensions` vivem **na própria linha do projeto** — não há
-  uma tabela `embedding_models` separada como em `code2rag`/`code-rag-api`. Cada projeto
-  fixa seu próprio modelo/dimensão; a pergunta em linguagem natural precisa ser embedada
-  com o modelo do **projeto sendo consultado** (lido de `projects.embedding_model`), não
-  de uma config global fixa — diferença de desenho relevante para `04-code-queries-baseline.md`.
+- O identificador exposto é `public_id` (UUID), não o `id` numérico. Toda rota/tool desta API
+  recebe e devolve `projectId` como UUID e resolve o `id` interno uma única vez, antes de
+  consultar `ciir_documents`/`ciir_relations`/`code_query_feedback`.
+- `git_url`/`git_raw_url` existem e são opcionais; valores em branco são tratados como `null`
+  na leitura. São a base para `gitUrl`/`gitRawUrl` nos resultados de `code-queries` e na tool
+  `get_code_source`.
+- **Não há modelo de embedding por projeto.** O modelo/dimensão são configuração da
+  implantação (tanto no indexer quanto nesta API, seção `Embeddings`) e ficam registrados por
+  documento em `ciir_documents.embedding_model`/`embedding_dimensions`.
 - `updated_at` existe (não existia no code-rag-api).
 
-Dado real (21 linhas): granularidade de "projeto" aqui é **por artefato/csproj**, não por
-repositório inteiro — os dados atuais em `code3rag` são o próprio código-fonte do
+Dado real no momento da descoberta (21 linhas): granularidade de "projeto" era **por
+artefato/csproj**, não por repositório inteiro — os dados eram o próprio código-fonte do
 `code-rag-api` indexado, um "projeto" por `.csproj` (`CodeRag.Api`, `CodeRag.Application`,
-`CodeRag.Api.Tests`, ...), todos com `embedding_model = 'bge-m3'`, `embedding_dimensions =
-1024`. Isso é um dado real de produção/demo, não necessariamente a granularidade que
-`code-ciir-indexer` sempre usa — não assumir que "projeto" sempre mapeia 1:1 a "repositório
-git" ao desenhar a UX de `GET /projects`.
+`CodeRag.Api.Tests`, ...), todos embedados com `bge-m3`/1024. Desde então o indexer passou a
+receber a identidade do projeto do chamador (um projeto por upload, cadastrado previamente via
+`POST /api/indexer/projects`), então não assumir que "projeto" mapeia 1:1 a "csproj" nem a
+"repositório git".
 
 ## `ciir_documents` (os nós do grafo)
 
@@ -73,7 +76,7 @@ source_path                 text               -- caminho relativo do arquivo fo
 embedding_text              text               -- texto que foi de fato embedado
 embedding_text_strategy     text               -- ex. "semantic-v1"
 embedding_text_hash         text
-embedding_model             text               -- modelo usado para ESTA linha (deve casar com projects.embedding_model)
+embedding_model             text               -- modelo usado para ESTA linha (configuração da implantação do indexer)
 embedding_dimensions        integer
 embedding_fingerprint_hash  text
 content                     jsonb NOT NULL     -- payload estruturado rico (símbolo, comentários, etc.); índice GIN
@@ -88,7 +91,7 @@ UNIQUE (project_id, ciir_id)                    -- ux_ciir_documents_project_cii
 `ix_ciir_documents_symbol_qualified_name`, `ix_ciir_documents_content_gin`,
 `ix_ciir_documents_embedding_hnsw` (HNSW, `vector_cosine_ops`, parcial `WHERE embedding IS
 NOT NULL` — **não** filtrado por modelo como em `code2rag`, já que aqui o modelo é fixo
-por projeto inteiro, não por linha).
+para toda a instalação).
 
 **Não existem colunas `namespace`/`type_name`/`member` separadas** como no
 `code-rag-api`. O mapeamento mais próximo:
@@ -191,19 +194,16 @@ created_at, updated_at   timestamptz NOT NULL default now() UTC
 
 ## Feedback
 
-Não existe nenhuma tabela de feedback em `code3rag`. Confirma a proposta de
-`06-code-query-feedback.md`: se essa fase avançar, a tabela é inteiramente nova, criada
-por fora do fluxo do `code-ciir-indexer`.
+`code_query_feedback` não existia na descoberta inicial. Foi criada depois por migration do
+`code-ciir-indexer` (`M20260909000000_AddCodeQueryFeedback`), com FK para `projects.id` e
+índice `ix_code_query_feedback_project_id_created_at` — ver `06-code-query-feedback.md`.
 
 ## Credenciais/conexão
 
-Usuário `fatlip` tem acesso de leitura (e aparentemente escrita, não testado) a
-`code3rag` no mesmo host que serve `code2rag`. **A senha foi compartilhada em texto puro
-no chat para viabilizar este levantamento — não deve ser commitada em nenhum arquivo deste
-repositório** (`.specs/`, `appsettings.json`, etc.); a connection string de produção/dev
-vem de secret (Kubernetes Secret / `dotnet user-secrets` local), nunca de arquivo versionado
-— ver `02-bootstrap-solution.md`/`08-ops-deployment.md`. Recomenda-se ao usuário considerar
-rotacionar essa senha após esta sessão, já que ela transitou por um canal de chat.
+Credenciais de acesso a `code3rag` **não devem ser commitadas em nenhum arquivo deste
+repositório** (`.specs/`, `appsettings.json`, etc.); a connection string de produção/dev vem de
+secret (Kubernetes Secret / `dotnet user-secrets` local), nunca de arquivo versionado — ver
+`02-bootstrap-solution.md`/`08-ops-deployment.md`.
 
 ## Confirmação cruzada com a migration autoritativa
 
@@ -219,15 +219,11 @@ integralmente** com o levantado acima, mais um detalhe que só a migration revel
 > per install" — **não** um design multi-modelo por linha com índice parcial (esse é o
 > desenho de `code2rag`, não o de `code3rag`).
 
-Consequência para `04-code-queries-baseline.md`: embora `projects.embedding_model`/
-`embedding_dimensions` sejam lidos por projeto (correto manter assim — é a fonte de
-verdade para qual modelo usar ao embedar a pergunta), **a coluna `ciir_documents.embedding`
-tem uma largura fixa única para toda a instalação de `code3rag`** — na prática atual, todos
-os 21 projetos já usam `bge-m3`/1024, consistente com essa restrição de schema. Se um
-projeto futuro tentasse usar dimensão diferente, a gravação do vetor pelo indexer falharia
-antes mesmo de chegar ao `code-ciir-api` — não é um caso que esta API precisa tratar
-defensivamente, mas vale saber que "modelo por projeto" é metadado informativo mais do que
-uma capacidade real de mistura de dimensões dentro do mesmo banco.
+Consequência: **a coluna `ciir_documents.embedding` tem uma largura fixa única para toda a
+instalação de `code3rag`**, e o modelo/dimensão são configuração da implantação, não do
+projeto. Esta API embeda a pergunta com o modelo da sua própria configuração
+(`Embeddings:Model`/`Embeddings:Dimensions`, ver `09-code-queries-filters.md`), que precisa
+ser o mesmo usado pelo indexer.
 
 `indexer-api` também confirmou que os comentários da migration referenciam um documento de
 especificação interno do `code-ciir-indexer` (spec §10/§11/§12/§16/§26 + "embedding-
@@ -237,9 +233,6 @@ entre documentos idênticos (hoje não é usado por nenhuma fase deste plano).
 
 ## Pendências residuais (não bloqueiam as fases seguintes)
 
-- Confirmar se `code-ciir-indexer` sempre usa granularidade de projeto "por csproj" ou se
-  isso é específico do dataset atual (repositório do próprio `code-rag-api` indexado como
-  demo) — afeta só UX/expectativa de `GET /projects`, não o contrato.
 - Estrutura completa do `content` jsonb não foi mapeada a fundo (só uma amostra) — só
   relevante se alguma fase futura decidir expor campos de `content` além dos já cobertos
   por colunas próprias (`comments`, por exemplo, aparece como chave em pelo menos um

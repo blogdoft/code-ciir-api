@@ -1,83 +1,71 @@
 # Fase 7 — CI/CD e deploy
 
-> **Caminhos movidos numa fase posterior**: `Dockerfile` e `docker-compose.yml`, descritos
-> abaixo na raiz do repositório, vivem hoje em `.eng/docker/` (`.dockerignore` continua na
-> raiz — precisa estar na raiz do build context, que continua sendo a raiz do repositório).
-> `.forgejo/workflows/docker-publish.yml` e `.eng/k8s/*.yaml` não mudaram de lugar. Também
-> foi adicionado `.forgejo/workflows/mirror-to-github.yml` (espelha todo push — branches e
-> tags — para `https://github.com/blogdoft/code-ciir-api`, cópia exata do workflow homônimo
-> de `code-rag-api`/`code-ciir-indexer`, mesmo mecanismo de token via
-> `MIRROR_GITHUB_TOKEN`). Não requer nenhuma mudança de código, só o secret configurado no
-> Forgejo (`Settings > Actions > Secrets`) para funcionar.
-
-**Status: manifests/workflow concluídos e validados localmente; deploy real (secrets, DNS,
-push ao registry, ArgoCD) pendente — depende de ações fora deste repositório (ver
-checklist).** `.forgejo/workflows/docker-publish.yml`, `.eng/k8s/*.yaml`, `Dockerfile`
-criados/atualizados.
-
-**Verificação real feita nesta sessão** (sem publicar nada externamente):
-- `docker build` da imagem: sucesso, `mcr.microsoft.com/dotnet/sdk:10.0` →
-  `mcr.microsoft.com/dotnet/aspnet:10.0`.
-- `docker run` da imagem construída, com a connection string real de `code3rag` injetada
-  via variável de ambiente (mesmo mecanismo do `secretKeyRef` do `deployment.yaml`):
-  `GET /version` → 200, `GET /api/v1/projects` → 200 com os 21 projetos reais. Confirma
-  que a imagem publicada funcionaria em produção tal como está.
-- Aviso benigno observado nos logs do container: `Cannot load library
-  libgssapi_krb5.so.2` (Npgsql tentando negociação GSSAPI/Kerberos, ausente na imagem
-  `aspnet:10.0` mínima) — não impede a conexão (autenticação por senha funciona
-  normalmente, confirmado pelo 200 acima); ignorar ou, se algum dia a base exigir auth
-  Kerberos, trocar a imagem de runtime por uma que inclua `libgssapi-krb5-2`.
-- **⚠️ Achado durante a verificação**: `dotnet build -c Release` (o que o `Dockerfile` e o
-  workflow de CI usam) revela mais avisos do StyleCop (documentação/formatação — SA1101,
-  SA1600, SA1629, SA1615, SA1633, SA1009/SA1010/SA1000) do que um `dotnet build` comum em
-  Debug no dia a dia — nenhum novo erro, só mais avisos de estilo. Não bloqueia esta fase,
-  mas uma limpeza desses avisos (ou ajuste de severidade no `stylecop.json`/`.editorconfig`)
-  é recomendada antes de tratar o pipeline de CI como "verde de verdade" — o
-  `code-rag-api` de referência tem avisos pré-existentes reconhecidos de forma parecida
-  (ex. o bug do analisador StyleCop com `RecordDeclaration`, também presente aqui).
-- `.config/dotnet-tools.json` ganhou `gitversion.tool` (6.8.2) — necessário para o step
-  "Compute version" do workflow; `dotnet tool restore` verificado localmente.
+**Status: concluído — em produção.** Imagem publicada pelo Forgejo Actions, manifests
+sincronizados para `argo-local-apps` e aplicados pelo ArgoCD no namespace `code-brain`,
+servidos no gateway `https://blogdoft.home.arpa/code-brain`.
 
 ## Contexto
 
-Mesmo padrão do `code-rag-api`: Forgejo Actions builda/testa/publica imagem Docker em
-push para `main` e tags de versão; o mesmo workflow estampa a tag da imagem nos manifests
-k8s (`.eng/k8s`) e sincroniza para `argo-local-apps`, que o ArgoCD observa para o cluster
-k8s local.
+Mesmo padrão do `code-rag-api`: o Forgejo Actions builda/testa/publica a imagem Docker; o
+mesmo workflow estampa a tag da imagem nos manifests k8s (`.eng/k8s`) e sincroniza para
+`sauron/argo-local-apps` (`manifests/code-brain/code-ciir-api`), que o ArgoCD observa.
 
-## Diferenças em relação ao code-rag-api
+## Arquivos
 
-- **Sem serviço `postgres` no `docker-compose.yml`** (ver `02-bootstrap-solution.md`) —
-  `code3rag` é remoto, não um container descartável local.
-- **Secret de conexão** diferente: `code-ciir-secrets` (não reaproveitar
-  `code-rag-secrets`, mesmo que aponte para o mesmo host — são bases/credenciais
-  logicamente distintas, e um serviço não deveria conseguir, mesmo que por engano via
-  copy-paste de manifest, escrever na base do outro).
-- **Ingress host**: `code-ciir-api.home.arpa` (a confirmar disponibilidade/convenção com o
-  usuário antes de criar o registro DNS/Ingress real).
-- **Sem reranking na Fase 1** → sem `Reranking__*` no `configmap.yaml` inicial, sem o
-  `ServersTransport` de 120s calibrado para reranking pesado (o `code-rag-api` usa 120s
-  especificamente por causa da latência de reranking via LLM; sem essa feature, o timeout
-  padrão do Traefik é suficiente até prova em contrário).
-- **`readinessProbe`**: apontar para o endpoint `GET` que sobreviver à decisão da Fase 2
-  (`/api/v1/projects` se Projects continuar exposto; caso contrário, um endpoint de
-  health/version dedicado, mesmo padrão do `VersionController` do code-rag-api).
+- `.eng/docker/Dockerfile` (`mcr.microsoft.com/dotnet/sdk:10.0` →
+  `mcr.microsoft.com/dotnet/aspnet:10.0`) e `.eng/docker/docker-compose.yml`. O
+  `.dockerignore` fica na raiz, que é o build context.
+- `.forgejo/workflows/docker-publish.yml`:
+  - `test` em pull requests para `main` e em tags `vX.Y.Z`;
+  - `ciir` em paralelo com `test`: analisa este repositório com a ferramenta `BlogDoFT.Ciir`
+    (dogfooding) e, numa tag, envia o `ciir.jsonl` resultante para o `code-ciir-indexer`;
+  - build/publish da imagem e sync para `argo-local-apps` só em tags `vX.Y.Z`. A versão vem da
+    tag (`gitversion.tool` em `.config/dotnet-tools.json`).
+- `.forgejo/workflows/mirror-to-github.yml`: espelha todos os branches e tags para
+  `https://github.com/blogdoft/code-ciir-api` a cada push e diariamente (cron), com token via
+  secret `MIRROR_GITHUB_TOKEN`.
+- `.eng/k8s/`: `deployment.yaml`, `service.yaml`, `configmap.yaml`, `ingress.yaml`,
+  `middleware.yaml`, `serverstransport.yaml`, `kustomization.yaml`.
 
-## Checklist de configuração fora deste repositório (mesma natureza do
-`ARGO_DEPLOY_SSH_KEY`/`code-rag-secrets` do code-rag-api — não gerenciado em código):
+## Decisões de deploy
 
-1. Deploy key com escrita em `sauron/argo-local-apps` (pode reaproveitar a mesma chave do
-   `code-rag-api` se a política de segurança do usuário permitir compartilhar entre
-   serviços, ou gerar uma dedicada — decisão do usuário).
-2. Secret `ARGO_DEPLOY_SSH_KEY` no repo `code-ciir-api` no Forgejo.
-3. Secret `code-ciir-secrets` (chave `connection-string`) no namespace alvo do cluster,
-   com a Npgsql connection string para `code3rag` — credenciais de **somente leitura**
-   sempre que a Fase 2 confirmar Projects read-only e a Fase 5 não avançar (nenhum motivo
-   para esta API ter permissão de escrita em `code3rag` além do estritamente necessário).
+- **Sem serviço `postgres` no `docker-compose.yml`** — `code3rag` é remoto.
+- **Secret de conexão próprio**: `code-ciir-secrets` (chave `connection-string`), não
+  `code-rag-secrets` — são bases logicamente distintas, e um serviço não deveria conseguir,
+  mesmo que por engano via copy-paste de manifest, escrever na base do outro.
+- **Ingress no gateway compartilhado**: host `blogdoft.home.arpa`, caminhos
+  `/code-brain/api/code-queries` e `/code-brain/mcp` (`pathType: Prefix`); o Middleware
+  `code-ciir-api-strip-code-brain` remove `/code-brain` antes de encaminhar. `/version` não tem
+  regra própria aqui: no gateway, ele cai no catch-all `/code-brain` do `code-rag-front`, cujo
+  nginx repassa para este serviço.
+- **Swagger** sempre publicado (não só em Development), em `api/code-queries/swagger`, com
+  `PublicServerDocumentFilter` definindo o `servers` do OpenAPI a partir de `PublicBaseUrl`.
+- **Timeout**: `serverstransport.yaml` (`code-ciir-api-transport`, `responseHeaderTimeout:
+  120s`), referenciado via anotação Traefik em `service.yaml`, por causa da latência do
+  reranking via LLM (ver `10-reranking.md`). Vale para qualquer caminho do mesmo `Service`.
+- **Probes**: `readinessProbe` e `livenessProbe` em `GET /health` (anônimo, fora de traces e
+  métricas).
+- **Configuração** (`configmap.yaml`): `Embeddings__*`, `Reranking__*`, `Keycloak__*`,
+  `Observability__*`, `OTEL_SERVICE_NAME`, `PublicBaseUrl`.
 
-## Verificação de saída desta fase
+## Observações de verificação
 
-- Pipeline verde builda/testa/publica a imagem a partir de um push de teste.
-- Deploy manual (ou via ArgoCD) sobe o pod, `readinessProbe` fica `Ready`, e uma chamada
-  real via `https://code-ciir-api.home.arpa/api/v1/projects` (ou o endpoint de health
-  escolhido) responde.
+- `docker run` da imagem com a connection string real injetada via variável de ambiente
+  (mesmo mecanismo do `secretKeyRef`): `GET /version` → 200.
+- Aviso benigno nos logs: `Cannot load library libgssapi_krb5.so.2` (Npgsql tentando
+  negociação GSSAPI/Kerberos, ausente na imagem `aspnet:10.0` mínima) — não impede a conexão
+  por senha; só seria preciso trocar a imagem de runtime se a base passasse a exigir Kerberos.
+- `dotnet build -c Release` (usado pelo `Dockerfile` e pelo CI) aplica mais regras do
+  StyleCop (documentação/formatação) do que o build Debug do dia a dia; rode em Release antes
+  de publicar para ver os mesmos avisos que o pipeline.
+
+## Configuração fora deste repositório
+
+Não gerenciada em código:
+
+1. Deploy key com escrita em `sauron/argo-local-apps` e o secret `ARGO_DEPLOY_SSH_KEY` no repo
+   `code-ciir-api` no Forgejo.
+2. Secret `code-ciir-secrets` (chave `connection-string`) no namespace `code-brain`, com a
+   connection string Npgsql para `code3rag`. O usuário precisa de leitura em `code3rag` e de
+   escrita em `code_query_feedback`.
+3. Secret `MIRROR_GITHUB_TOKEN` para o espelhamento no GitHub.

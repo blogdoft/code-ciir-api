@@ -1,8 +1,8 @@
-# Fase 10 — Reranking em `code-queries`, e reversão de `size`/`page` para `limit`
+# Fase 9 — Reranking em `code-queries`, e reversão de `size`/`page` para `limit`
 
 **Status: concluído.** Portado o subsistema de reranking de `code-rag-api`
 (`CodeCiir.Reranking.Abstraction`/`.Ollama`/`.OpenAI`), ligado incondicionalmente em
-`CodeQueryService.QueryAsync` (`NoOpReranker` quando desligado). `size`+`page` (Fase 9)
+`CodeQueryService.QueryAsync` (`NoOpReranker` quando desligado). `size`+`page` (Fase 8)
 foram revertidos para um único `limit`, já que reranking exige reordenar todo o pool de
 candidatos antes de truncar — incompatível com paginação por `OFFSET`. Reranking já vai
 ligado por padrão em toda parte (`appsettings.json` **e** `configmap.yaml`, ambos com
@@ -14,7 +14,7 @@ Traefik. 135 testes verdes na solução inteira.
 
 O usuário notou que `code-ciir-api` não tinha nenhuma configuração de modelo de reranking —
 confirmado: reranking nunca foi implementado aqui, fora de escopo desde a Fase 1
-(`.specs/08-ops-deployment.md`). `code-rag-api` já tem reranking real (providers Ollama e
+(`.specs/02-bootstrap-solution.md`). `code-rag-api` já tem reranking real (providers Ollama e
 Cohere), usado para reordenar os candidatos da busca vetorial por relevância antes de
 truncar para o `limit` pedido.
 
@@ -28,7 +28,7 @@ truncar para o `limit` pedido.
    (`CodeRag.Embeddings.OpenAI`), adaptado aqui do formato `/embeddings` para
    `/chat/completions`. Funciona contra a OpenAI real ou qualquer gateway auto-hospedado
    compatível (vLLM, LiteLLM, o próprio endpoint `/v1` do Ollama).
-3. **`size`+`page` (Fase 9) voltam a ser um único `limit`.** Reranking precisa reordenar
+3. **`size`+`page` (Fase 8) voltam a ser um único `limit`.** Reranking precisa reordenar
    **todo** o pool de candidatos do maior match para o menor antes de truncar — só é seguro
    com um único corte. Paginação via `OFFSET` rerankearia cada página isoladamente, podendo
    esconder um match globalmente melhor que caiu numa página seguinte, e quebra a garantia
@@ -88,17 +88,17 @@ var results = candidates
     .ToList();
 ```
 
-`MaxResultLimit = 50` e `DefaultLimit = 10` voltam aos valores originais (pré-Fase 9);
+`MaxResultLimit = 50` e `DefaultLimit = 10` voltam aos valores originais (pré-Fase 8);
 `MaxCandidatePoolSize = 200` é novo (mesmo teto de `code-rag-api`, mesma lógica defensiva
 já usada em `MaxGraphNodes`). `limit` continua sendo *clampado* (não validado com 400) —
 comportamento original deste repositório, mantido sem alteração.
 
-O grafo de relações (2-hop) continua só sendo expandido quando `project_id` é informado
-(decisão da Fase 9, inalterada) — a partir da página final, já reordenada por reranking.
+O grafo de relações (2-hop) continua só sendo expandido quando `projectId` é informado
+(decisão da Fase 8, inalterada) — a partir da página final, já reordenada por reranking.
 
 ## Contrato
 
-`CodeQueryResultResponse` ganha `rerank_score` (`double?`, `null` quando reranking está
+`CodeQueryResultResponse` ganha `rerankScore` (`double?`, `null` quando reranking está
 desligado ou o candidato não foi pontuado). `CodeQueryRequest` perde `size`/`page`, ganha de
 volta `limit` (`int?`, default 10, teto 50).
 
@@ -131,5 +131,5 @@ Traefik em `service.yaml` e listado em `kustomization.yaml`.
 - Confirmado pelo usuário: `qwen2.5:7b-instruct` já está instalado nesse Ollama
   compartilhado e em uso pelo `code-rag-api` — não é mais uma pendência.
 - Pendente: smoke test manual real contra `code3rag`/Ollama com reranking ligado,
-  confirmando que `rerank_score` vem preenchido e a ordem reflete a nota do reranker, não
+  confirmando que `rerankScore` vem preenchido e a ordem reflete a nota do reranker, não
   só a similaridade de cosseno crua.
